@@ -87,10 +87,12 @@ const CONFIG = {
     { subject: "Frontend", value: 70 },
   ],
   featuredRepos: [
-    "J.A.R.V.I.S",
-    "S.P.E.C.T.E.R",
-    "C.L.A.R.I.S",
-    "M.A.R.M.Z",
+    "Checkers",
+    "Comp315-Project",
+    "Data-Structure-Implementations-Library",
+    "Gravity-Simulation",
+    "ISTN-Group-Project",
+    "ISTN3SI-Project",
   ],
 };
 
@@ -417,46 +419,93 @@ function GeometricParallax({ scrollY, reducedMotion }) {
 }
 
 /* =========================================================================
-   Neon blue dolphin — swims horizontally across the parallax layer as the
-   page is scrolled, looping continuously, with a soft neon glow and a
-   gentle vertical bob so the motion reads as swimming rather than sliding.
+   Neon blue dolphin — swims a full loop around the edge of the viewport as
+   the page is scrolled: across the top, down the right side, back along
+   the bottom, and up the left side. Reversing scroll direction turns the
+   dolphin around mid-swim rather than just retracing pixels. The loop's
+   lanes are computed from the live viewport size so the dolphin never
+   crosses the centered JARVIS globe (it stays outside the globe's radius
+   at all times) — it's a background layer, so it also always renders
+   beneath actual page content regardless of where it wanders.
    ========================================================================= */
 function NeonDolphin({ scrollY, f }) {
-  // Loops from just off-screen left to just off-screen right, then wraps.
-  const loopWidth = 140; // percentage span of the loop, including off-screen buffer
-  const xPercent = ((scrollY * 0.25 * f) % loopWidth) - 20;
-  const bob = Math.sin(scrollY * 0.015 * f) * 26;
-  const tilt = Math.sin(scrollY * 0.015 * f) * 8;
+  const [viewport, setViewport] = useState(() => ({
+    width: typeof window !== "undefined" ? window.innerWidth : 1280,
+    height: typeof window !== "undefined" ? window.innerHeight : 800,
+  }));
+  useEffect(() => {
+    const onResize = () => setViewport({ width: window.innerWidth, height: window.innerHeight });
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  // Track real scroll direction (not just position) so the dolphin only
+  // turns around when the person actually reverses their scrolling.
+  const [direction, setDirection] = useState(1); // 1 = scrolling down, -1 = scrolling up
+  const prevScrollRef = useRef(scrollY);
+  useEffect(() => {
+    const delta = scrollY - prevScrollRef.current;
+    if (delta > 0.6) setDirection(1);
+    else if (delta < -0.6) setDirection(-1);
+    prevScrollRef.current = scrollY;
+  }, [scrollY]);
+
+  // Perimeter lanes, kept clear of the JARVIS globe (size 760, radius 0.44
+  // of that) and off the very edge of the screen.
+  const globeR = 760 * 0.44;
+  const cy = viewport.height / 2;
+  const topY = Math.max(56, cy - globeR - 40);
+  const bottomY = Math.min(viewport.height - 40, cy + globeR + 40);
+  const leftX = Math.max(30, viewport.width * 0.05);
+  const rightX = Math.min(viewport.width - 30, viewport.width * 0.95);
+
+  const t = (((scrollY * 0.00065 * f) % 4) + 4) % 4;
+  const seg = Math.min(3, Math.floor(t));
+  const frac = t - seg;
+
+  let x, y, baseAngle;
+  if (seg === 0) { x = leftX + frac * (rightX - leftX); y = topY; baseAngle = 0; }
+  else if (seg === 1) { x = rightX; y = topY + frac * (bottomY - topY); baseAngle = 90; }
+  else if (seg === 2) { x = rightX - frac * (rightX - leftX); y = bottomY; baseAngle = 180; }
+  else { x = leftX; y = bottomY - frac * (bottomY - topY); baseAngle = 270; }
+
+  // Facing follows the direction actually being travelled, so scrolling
+  // up visibly turns the dolphin around rather than sliding it backward.
+  const travelAngle = direction === 1 ? baseAngle : (baseAngle + 180) % 360;
+  let faceTransform = "";
+  let bobAxis = "y";
+  if (travelAngle === 180) faceTransform = "scaleX(-1)";
+  else if (travelAngle === 90) { faceTransform = "rotate(90deg)"; bobAxis = "x"; }
+  else if (travelAngle === 270) { faceTransform = "rotate(-90deg)"; bobAxis = "x"; }
+
+  const bob = Math.sin(scrollY * 0.02 * f) * 10;
+  const bobTransform = bobAxis === "y" ? `translateY(${bob}px)` : `translateX(${bob}px)`;
 
   return (
     <svg
-      width="150" height="80" viewBox="0 0 200 100"
+      width="120" height="80" viewBox="0 0 220 145"
       style={{
         position: "absolute",
-        top: "34%",
-        left: `${xPercent}%`,
-        transform: `translateY(${bob}px) rotate(${tilt}deg)`,
-        opacity: 0.85,
-        filter: "drop-shadow(0 0 6px #22d3ee) drop-shadow(0 0 14px rgba(34,211,238,0.7))",
+        top: y,
+        left: x,
+        transform: `translate(-50%, -50%) ${bobTransform} ${faceTransform}`,
+        opacity: 0.9,
+        filter: "drop-shadow(0 0 5px #22d3ee) drop-shadow(0 0 12px rgba(34,211,238,0.65))",
       }}
     >
       <path
-        d="M8,58
-           C18,30 46,14 78,16
-           C86,8 100,4 112,10
-           C104,16 96,20 92,26
-           C118,26 140,38 152,32
-           C160,42 176,40 188,50
-           C176,50 168,58 158,54
-           C148,64 126,70 104,66
-           C96,76 76,80 58,74
-           C48,80 34,78 26,70
-           C18,72 10,66 8,58 Z"
-        fill="none"
-        stroke="#38bdf8"
-        strokeWidth="2.2"
-        strokeLinejoin="round"
+        d="M205,112 C198,100 197,84 200,68 C204,48 190,32 165,26
+           C156,23 148,22 142,26 C144,36 142,46 136,54
+           C112,50 88,58 84,66 C68,74 52,84 40,94
+           C36,84 38,70 32,58 C22,60 12,68 8,80
+           C4,90 6,102 14,110 C22,104 30,96 36,86
+           C36,100 40,114 50,120 C74,112 98,108 122,110
+           C152,113 178,116 198,118 C202,116 204,114 205,112 Z"
+        fill="none" stroke="#38bdf8" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"
       />
+      <path d="M145,26 Q158,4 172,24" fill="none" stroke="#38bdf8" strokeWidth="4" strokeLinecap="round" />
+      <path d="M95,108 Q108,134 122,112" fill="none" stroke="#38bdf8" strokeWidth="4" strokeLinecap="round" />
+      <circle cx="183" cy="58" r="3.2" fill="#38bdf8" />
     </svg>
   );
 }
@@ -607,27 +656,26 @@ function ProjectsSection() {
     let cancelled = false;
     async function load() {
       try {
-        const [uRes, rRes] = await Promise.all([
+        const [uRes, ...repoResults] = await Promise.all([
           fetch(`https://api.github.com/users/${CONFIG.githubUsername}`),
-          fetch(`https://api.github.com/users/${CONFIG.githubUsername}/repos?sort=updated&per_page=100`),
+          ...CONFIG.featuredRepos.map((name) =>
+            fetch(`https://api.github.com/repos/${CONFIG.githubUsername}/${name}`)
+          ),
         ]);
-        if (!uRes.ok || !rRes.ok) throw new Error("fetch failed");
+        if (!uRes.ok) throw new Error("fetch failed");
         const u = await uRes.json();
-        let r = await rRes.json();
-        r = r.filter((p) => !p.fork);
 
-        // surface featured repos first, then fall back to top starred
-        const featured = CONFIG.featuredRepos
-          .map((name) => r.find((p) => p.name.toLowerCase() === name.toLowerCase()))
-          .filter(Boolean);
-        const rest = r
-          .filter((p) => !featured.includes(p))
-          .sort((a, b) => b.stargazers_count - a.stargazers_count);
-        const combined = [...featured, ...rest].slice(0, 6);
+        // Pull all 6 pinned repos, in the exact order they're pinned on GitHub.
+        const pinned = (
+          await Promise.all(
+            repoResults.map((res) => (res.ok ? res.json() : null))
+          )
+        ).filter(Boolean);
+        if (pinned.length === 0) throw new Error("fetch failed");
 
         if (!cancelled) {
           setProfile(u);
-          setRepos(combined);
+          setRepos(pinned);
         }
       } catch (e) {
         if (!cancelled) setError(true);
