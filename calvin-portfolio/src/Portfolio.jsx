@@ -483,7 +483,7 @@ function NeonDolphin({ scrollY, f }) {
 
   return (
     <svg
-      width="120" height="80" viewBox="0 0 220 145"
+      width="130" height="86" viewBox="0 0 220 145"
       style={{
         position: "absolute",
         top: y,
@@ -494,18 +494,19 @@ function NeonDolphin({ scrollY, f }) {
       }}
     >
       <path
-        d="M205,112 C198,100 197,84 200,68 C204,48 190,32 165,26
-           C156,23 148,22 142,26 C144,36 142,46 136,54
-           C112,50 88,58 84,66 C68,74 52,84 40,94
-           C36,84 38,70 32,58 C22,60 12,68 8,80
-           C4,90 6,102 14,110 C22,104 30,96 36,86
-           C36,100 40,114 50,120 C74,112 98,108 122,110
-           C152,113 178,116 198,118 C202,116 204,114 205,112 Z"
-        fill="none" stroke="#38bdf8" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"
+        d="M200,93 C180,45 145,29 105,30 C70,31 43,47 30,73
+           C27,79 27,83 30,87 C40,107 75,115 115,110
+           C150,106 180,103 198,98 Z"
+        fill="none" stroke="#38bdf8" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round"
       />
-      <path d="M145,26 Q158,4 172,24" fill="none" stroke="#38bdf8" strokeWidth="4" strokeLinecap="round" />
-      <path d="M95,108 Q108,134 122,112" fill="none" stroke="#38bdf8" strokeWidth="4" strokeLinecap="round" />
-      <circle cx="183" cy="58" r="3.2" fill="#38bdf8" />
+      <path
+        d="M32,70 C18,63 6,57 0,53 C14,65 20,71 22,75
+           C18,81 8,91 2,99 C14,91 24,83 32,90"
+        fill="none" stroke="#38bdf8" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round"
+      />
+      <path d="M110,31 Q120,4 138,32" fill="none" stroke="#38bdf8" strokeWidth="3" strokeLinecap="round" />
+      <path d="M148,106 Q160,134 175,109" fill="none" stroke="#38bdf8" strokeWidth="3" strokeLinecap="round" />
+      <circle cx="176" cy="58" r="3" fill="#38bdf8" />
     </svg>
   );
 }
