@@ -20,14 +20,14 @@ const CONFIG = {
     "I build offline AI assistants, packet sniffers, and data structure libraries — mostly at 2am, mostly with too much sandwiches.",
   githubUsername: "ScholarSphinx",
   email: "calvinpillay99@gmail.com",
-  resumeUrl: "/resume.pdf",
+  resumeUrl: `${import.meta.env.BASE_URL}resume.pdf`,
   social: {
     github: "https://github.com/ScholarSphinx",
     linkedin: "https://www.linkedin.com/in/calvin-pillay-654002256",
     instagram: "https://www.instagram.com/pilcal22",
   },
   location: "Durban, South Africa",
-  avatarUrl: "/images/avatar.jpg",
+  avatarUrl: `${import.meta.env.BASE_URL}images/avatar.jpg`,
   playgroundUrl: "", // TODO: once you deploy the 3D driving portfolio (calvin-portfolio-3d.zip), paste its live URL here
   about: {
     heading: "Hey, I'm Calvin",
