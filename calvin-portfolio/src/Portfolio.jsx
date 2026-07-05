@@ -483,46 +483,50 @@ function NeonDolphin({ scrollY, f }) {
 
   return (
     <svg
-      width="140" height="90" viewBox="0 0 240 150"
+      width="150"
+      height="75"
+      viewBox="0 0 200 100"
       style={{
         position: "absolute",
         top: y,
         left: x,
         transform: `translate(-50%, -50%) ${bobTransform} ${faceTransform}`,
         opacity: 0.9,
-        filter: "drop-shadow(0 0 5px #22d3ee) drop-shadow(0 0 12px rgba(34,211,238,0.65))",
+        filter: "drop-shadow(0 0 6px #22d3ee) drop-shadow(0 0 15px rgba(34,211,238,0.7))",
       }}
     >
-      {/* Detailed, organically shaped outline of an actual dolphin */}
+      {/* Anatomically detailed single-path silhouette of a swimming dolphin */}
       <path
-        d="M 225,75 
-           C 220,70 210,65 195,65 
-           C 185,65 175,50 150,42 
-           C 135,38 122,40 120,40 
-           C 118,32 110,15 125,5 
-           C 105,10 98,30 95,45 
-           C 75,53 50,68 25,85 
-           C 20,88 12,90 5,88 
-           C 10,95 18,100 22,105 
-           C 20,112 10,120 2,125 
-           C 12,120 25,110 32,105 
-           C 50,102 70,98 90,92 
-           C 92,102 98,115 110,120 
-           C 112,112 108,100 105,90 
-           C 135,84 170,82 190,80 
-           C 205,79 215,82 225,75 Z"
-        fill="none" 
-        stroke="#38bdf8" 
-        strokeWidth="3" 
-        strokeLinejoin="round" 
+        d="M 195,52 
+           C 190,53 182,54 178,51 
+           C 173,43 162,35 145,30 
+           C 132,26 120,26 112,28 
+           C 107,24 94,10 106,2 
+           C 93,5 88,18 85,31 
+           C 72,36 55,46 35,58 
+           C 25,64 16,68 10,69 
+           C 4,70 1,67 2,64 
+           C 3,69 6,76 10,77 
+           C 11,81 7,88 2,93 
+           C 8,91 16,85 20,81 
+           C 26,82 33,81 40,80 
+           C 45,86 52,98 62,97 
+           C 61,90 56,82 52,77 
+           C 74,73 105,67 128,64 
+           C 148,61 168,59 180,57 
+           C 186,56 193,56 196,54 
+           C 198,53 197,51 195,52 Z"
+        fill="none"
+        stroke="#38bdf8"
+        strokeWidth="2.5"
+        strokeLinejoin="round"
         strokeLinecap="round"
       />
-      {/* Eye position adjusted for proper facial layout */}
-      <circle cx="205" cy="71" r="2.5" fill="#38bdf8" />
+      {/* Eye placement proportional to the new rostrum scale */}
+      <circle cx="172" cy="46" r="2" fill="#38bdf8" />
     </svg>
   );
 }
-
 /* =========================================================================
    JARVIS-style holographic globe — a dense wireframe sphere of latitude/
    meridian lines, scattered data-point nodes, and a warm core glow,
