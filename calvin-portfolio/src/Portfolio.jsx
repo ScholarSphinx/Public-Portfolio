@@ -483,7 +483,7 @@ function NeonDolphin({ scrollY, f }) {
 
   return (
     <svg
-      width="130" height="86" viewBox="0 0 220 145"
+      width="140" height="90" viewBox="0 0 240 150"
       style={{
         position: "absolute",
         top: y,
@@ -493,20 +493,32 @@ function NeonDolphin({ scrollY, f }) {
         filter: "drop-shadow(0 0 5px #22d3ee) drop-shadow(0 0 12px rgba(34,211,238,0.65))",
       }}
     >
+      {/* Detailed, organically shaped outline of an actual dolphin */}
       <path
-        d="M200,93 C180,45 145,29 105,30 C70,31 43,47 30,73
-           C27,79 27,83 30,87 C40,107 75,115 115,110
-           C150,106 180,103 198,98 Z"
-        fill="none" stroke="#38bdf8" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round"
+        d="M 225,75 
+           C 220,70 210,65 195,65 
+           C 185,65 175,50 150,42 
+           C 135,38 122,40 120,40 
+           C 118,32 110,15 125,5 
+           C 105,10 98,30 95,45 
+           C 75,53 50,68 25,85 
+           C 20,88 12,90 5,88 
+           C 10,95 18,100 22,105 
+           C 20,112 10,120 2,125 
+           C 12,120 25,110 32,105 
+           C 50,102 70,98 90,92 
+           C 92,102 98,115 110,120 
+           C 112,112 108,100 105,90 
+           C 135,84 170,82 190,80 
+           C 205,79 215,82 225,75 Z"
+        fill="none" 
+        stroke="#38bdf8" 
+        strokeWidth="3" 
+        strokeLinejoin="round" 
+        strokeLinecap="round"
       />
-      <path
-        d="M32,70 C18,63 6,57 0,53 C14,65 20,71 22,75
-           C18,81 8,91 2,99 C14,91 24,83 32,90"
-        fill="none" stroke="#38bdf8" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round"
-      />
-      <path d="M110,31 Q120,4 138,32" fill="none" stroke="#38bdf8" strokeWidth="3" strokeLinecap="round" />
-      <path d="M148,106 Q160,134 175,109" fill="none" stroke="#38bdf8" strokeWidth="3" strokeLinecap="round" />
-      <circle cx="176" cy="58" r="3" fill="#38bdf8" />
+      {/* Eye position adjusted for proper facial layout */}
+      <circle cx="205" cy="71" r="2.5" fill="#38bdf8" />
     </svg>
   );
 }
