@@ -27,6 +27,7 @@ const CONFIG = {
     instagram: "https://www.instagram.com/pilcal22",
   },
   location: "Durban, South Africa",
+  dob: "2004-08-19", // 19/08/2004 — used to render DOB + a live, self-updating age
   avatarUrl: `${import.meta.env.BASE_URL}images/avatar.jpg`,
   playgroundUrl: "", // TODO: once you deploy the 3D driving portfolio (calvin-portfolio-3d.zip), paste its live URL here
   about: {
@@ -409,7 +410,54 @@ function GeometricParallax({ scrollY, reducedMotion }) {
       >
         <circle cx="50" cy="50" r="42" fill="none" stroke="#22d3ee" strokeWidth="0.6" strokeDasharray="4 3" />
       </svg>
+
+      <NeonDolphin scrollY={scrollY} f={f} />
     </div>
+  );
+}
+
+/* =========================================================================
+   Neon blue dolphin — swims horizontally across the parallax layer as the
+   page is scrolled, looping continuously, with a soft neon glow and a
+   gentle vertical bob so the motion reads as swimming rather than sliding.
+   ========================================================================= */
+function NeonDolphin({ scrollY, f }) {
+  // Loops from just off-screen left to just off-screen right, then wraps.
+  const loopWidth = 140; // percentage span of the loop, including off-screen buffer
+  const xPercent = ((scrollY * 0.25 * f) % loopWidth) - 20;
+  const bob = Math.sin(scrollY * 0.015 * f) * 26;
+  const tilt = Math.sin(scrollY * 0.015 * f) * 8;
+
+  return (
+    <svg
+      width="150" height="80" viewBox="0 0 200 100"
+      style={{
+        position: "absolute",
+        top: "34%",
+        left: `${xPercent}%`,
+        transform: `translateY(${bob}px) rotate(${tilt}deg)`,
+        opacity: 0.85,
+        filter: "drop-shadow(0 0 6px #22d3ee) drop-shadow(0 0 14px rgba(34,211,238,0.7))",
+      }}
+    >
+      <path
+        d="M8,58
+           C18,30 46,14 78,16
+           C86,8 100,4 112,10
+           C104,16 96,20 92,26
+           C118,26 140,38 152,32
+           C160,42 176,40 188,50
+           C176,50 168,58 158,54
+           C148,64 126,70 104,66
+           C96,76 76,80 58,74
+           C48,80 34,78 26,70
+           C18,72 10,66 8,58 Z"
+        fill="none"
+        stroke="#38bdf8"
+        strokeWidth="2.2"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
@@ -788,6 +836,29 @@ function ConnectAndStack() {
 }
 
 /* =========================================================================
+   DOB / age helpers — age is derived from CONFIG.dob against "now", so it
+   always reflects the current date with no manual updates required.
+   ========================================================================= */
+function formatDob(dobString) {
+  const d = new Date(dobString);
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+}
+
+function calculateAge(dobString) {
+  const dob = new Date(dobString);
+  const now = new Date();
+  let age = now.getFullYear() - dob.getFullYear();
+  const hasHadBirthdayThisYear =
+    now.getMonth() > dob.getMonth() ||
+    (now.getMonth() === dob.getMonth() && now.getDate() >= dob.getDate());
+  if (!hasHadBirthdayThisYear) age -= 1;
+  return age;
+}
+
+/* =========================================================================
    About section — terminal-card style, deliberately placed mid-page
    ========================================================================= */
 function AboutSection() {
@@ -838,6 +909,13 @@ function AboutSection() {
               fontStyle: "italic", margin: "0 0 26px",
             }}>
               {CONFIG.about.role}
+            </p>
+            <p style={{
+              fontFamily: "'JetBrains Mono', monospace", fontSize: 12.5, color: "#8b8ba0",
+              margin: "0 0 22px", display: "flex", gap: 14, flexWrap: "wrap",
+            }}>
+              <span>🎂 DOB: <span style={{ color: "#22d3ee" }}>{formatDob(CONFIG.dob)}</span></span>
+              <span>· Age: <span style={{ color: "#22d3ee" }}>{calculateAge(CONFIG.dob)}</span></span>
             </p>
             {CONFIG.about.paragraphs.map((p, i) => (
               <p key={i} style={{ color: "#c2c2d4", fontSize: 15, lineHeight: 1.85, margin: "0 0 18px" }}>
