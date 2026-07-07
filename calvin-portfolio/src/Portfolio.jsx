@@ -495,35 +495,48 @@ function NeonDolphin({ scrollY, f }) {
         filter: "drop-shadow(0 0 6px #22d3ee) drop-shadow(0 0 15px rgba(34,211,238,0.7))",
       }}
     >
-      {/* Anatomically detailed single-path silhouette of a swimming dolphin */}
+      {/* Body: beak, melon, back, swept dorsal fin, tapered peduncle, and
+          notched tail flukes — one closed, filled path so it reads as a
+          solid body rather than a wireframe outline. */}
       <path
-        d="M 195,52 
-           C 190,53 182,54 178,51 
-           C 173,43 162,35 145,30 
-           C 132,26 120,26 112,28 
-           C 107,24 94,10 106,2 
-           C 93,5 88,18 85,31 
-           C 72,36 55,46 35,58 
-           C 25,64 16,68 10,69 
-           C 4,70 1,67 2,64 
-           C 3,69 6,76 10,77 
-           C 11,81 7,88 2,93 
-           C 8,91 16,85 20,81 
-           C 26,82 33,81 40,80 
-           C 45,86 52,98 62,97 
-           C 61,90 56,82 52,77 
-           C 74,73 105,67 128,64 
-           C 148,61 168,59 180,57 
-           C 186,56 193,56 196,54 
-           C 198,53 197,51 195,52 Z"
-        fill="none"
-        stroke="#38bdf8"
-        strokeWidth="2.5"
+        d="M 198,47
+           C 193,42 187,38 180,36
+           C 176,35 172,34 169,33
+           C 162,30 152,29 138,28
+           C 133,17 124,6 113,3
+           C 107,9 101,18 97,27
+           C 80,33 60,41 42,49
+           C 33,53 27,55 22,58
+           C 15,52 7,47 2,44
+           C 8,50 13,54 17,58
+           C 11,63 4,69 1,76
+           C 8,72 16,68 24,65
+           C 39,70 58,75 76,78
+           C 91,80 103,79 112,77
+           C 127,74 141,69 154,63
+           C 165,58 178,54 189,49
+           C 193,48 196,47 198,47 Z"
+        fill="#38bdf8"
+        fillOpacity="0.25"
+        stroke="#7dd3fc"
+        strokeWidth="1.4"
         strokeLinejoin="round"
         strokeLinecap="round"
       />
-      {/* Eye placement proportional to the new rostrum scale */}
-      <circle cx="172" cy="46" r="2" fill="#38bdf8" />
+      {/* Pectoral fin, swept back beneath the head */}
+      <path
+        d="M 140,73
+           C 133,80 122,86 106,93
+           C 114,87 124,80 132,75
+           C 135,74 138,73 140,73 Z"
+        fill="#38bdf8"
+        fillOpacity="0.25"
+        stroke="#7dd3fc"
+        strokeWidth="1"
+        strokeLinejoin="round"
+      />
+      {/* Eye — bright glowing dot, reads better than a dark pupil now that the body is translucent */}
+      <circle cx="180" cy="39" r="2.2" fill="#7dd3fc" />
     </svg>
   );
 }
