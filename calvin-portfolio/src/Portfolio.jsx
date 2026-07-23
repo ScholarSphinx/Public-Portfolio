@@ -64,7 +64,6 @@ const CONFIG = {
       details: "Comptuer Systems, Advanced Programming with Data Structures, Theory of Computation",
     },
   ],
-images/certs/cert-1.jpg)
   certifications: [
     {
       name: "Information Technology National Olympiad",
