@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Github, Linkedin, Mail, Terminal, ExternalLink, Star, GitFork,
-  Download, ChevronRight, X, Cpu, Lock, Radio, ArrowUpRight, Instagram, Binary, User, Car
+  Download, ChevronRight, X, Cpu, Lock, Radio, ArrowUpRight, Instagram, Binary, User, Car, Award
 } from "lucide-react";
 import {
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
@@ -62,6 +62,31 @@ const CONFIG = {
       institution: "University of Kwa-Zulu Natal",
       period: "2023 — 2026",
       details: "Comptuer Systems, Advanced Programming with Data Structures, Theory of Computation",
+    },
+  ],
+  // TODO: replace each placeholder below with your real certifications, and drop the
+  // matching certificate image into /public/images/certs/ (e.g. public/images/certs/cert-1.jpg)
+  certifications: [
+    {
+      name: "Certification Name",
+      issuer: "Issuing Organization",
+      date: "2025",
+      description: "Brief description of what this certification covers and the skills it validates.",
+      image: `${import.meta.env.BASE_URL}images/certs/cert-1.jpg`,
+    },
+    {
+      name: "Certification Name",
+      issuer: "Issuing Organization",
+      date: "2024",
+      description: "Brief description of what this certification covers and the skills it validates.",
+      image: `${import.meta.env.BASE_URL}images/certs/cert-2.jpg`,
+    },
+    {
+      name: "Certification Name",
+      issuer: "Issuing Organization",
+      date: "2024",
+      description: "Brief description of what this certification covers and the skills it validates.",
+      image: `${import.meta.env.BASE_URL}images/certs/cert-3.jpg`,
     },
   ],
   techStack: [
@@ -184,7 +209,7 @@ function CommandTerminal({ open, setOpen, onNavigate, onDrive }) {
     let out = "";
     if (!cmd) return;
     if (cmd === "help") {
-      out = "commands: goto [home|about|skills|experience|education|projects|resume|contact], whoami, resume, drive, sudo hire calvin, clear, exit";
+      out = "commands: goto [home|about|skills|experience|education|certifications|projects|resume|contact], whoami, resume, drive, sudo hire calvin, clear, exit";
     } else if (cmd === "whoami") {
       out = `${CONFIG.name} — ${CONFIG.title} — access_level: OMEGA`;
     } else if (cmd.startsWith("goto ")) {
@@ -716,7 +741,7 @@ function ProjectsSection() {
   }, []);
 
   return (
-    <Section id="projects" label="05 / repositories">
+    <Section id="projects" label="06 / repositories">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 40, flexWrap: "wrap", gap: 16 }}>
         <h2 style={{ fontSize: "clamp(28px,4vw,40px)", color: "#e4e4f0", margin: 0, fontFamily: "'Space Grotesk', sans-serif" }}>
           Live from GitHub
@@ -1086,11 +1111,118 @@ function EducationSection() {
 }
 
 /* =========================================================================
+   Certifications — hover-to-preview badge, click to open the full image
+   ========================================================================= */
+function CertificationPreviewIcon({ image, title }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <div
+      style={{ position: "relative", display: "inline-flex", flexShrink: 0 }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <button
+        type="button"
+        onClick={() => window.open(image, "_blank", "noopener,noreferrer")}
+        aria-label={`Open ${title} certificate image`}
+        title={`View ${title} certificate`}
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "center",
+          width: 34, height: 34, borderRadius: 8, flexShrink: 0, cursor: "pointer",
+          border: `1px solid rgba(34,211,238,${hovered ? 0.7 : 0.35})`,
+          background: hovered ? "rgba(34,211,238,0.14)" : "rgba(34,211,238,0.06)",
+          color: "#22d3ee", transition: "border-color 0.15s ease, background 0.15s ease",
+        }}
+      >
+        <Award size={16} />
+      </button>
+      {hovered && (
+        <div
+          role="presentation"
+          style={{
+            position: "absolute", bottom: "calc(100% + 10px)", right: 0, width: 220,
+            borderRadius: 10, overflow: "hidden", zIndex: 20, pointerEvents: "none",
+            border: "1px solid rgba(34,211,238,0.4)", background: "#0d0d16",
+            boxShadow: "0 12px 32px rgba(0,0,0,0.55)",
+          }}
+        >
+          <img
+            src={image}
+            alt={`${title} certificate preview`}
+            style={{ width: "100%", height: 140, objectFit: "cover", display: "block", background: "#1a1a24" }}
+          />
+          <div style={{
+            padding: "8px 10px", fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+            color: "#9c9cb0", borderTop: "1px solid rgba(34,211,238,0.2)",
+          }}>
+            click to open full image
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CertificationEntry({ title, issuer, date, description, image, isLast }) {
+  return (
+    <div style={{ display: "flex", gap: 22, paddingBottom: isLast ? 0 : 30 }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 4 }}>
+        <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#22d3ee", flexShrink: 0 }} />
+        {!isLast && <span style={{ flex: 1, width: 1, background: "rgba(34,211,238,0.25)", marginTop: 4 }} />}
+      </div>
+      <div style={{ flex: 1, minWidth: 0, paddingBottom: 4 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 14, marginBottom: 6 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 17, color: "#e4e4f0", fontWeight: 600 }}>
+              {title}
+            </span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "#8b8ba0" }}>
+              {date}
+            </span>
+          </div>
+          <CertificationPreviewIcon image={image} title={title} />
+        </div>
+        <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: "#22d3ee", margin: "0 0 10px" }}>
+          {issuer}
+        </p>
+        <p style={{ margin: 0, color: "#c2c2d4", fontSize: 14, lineHeight: 1.8 }}>{description}</p>
+      </div>
+    </div>
+  );
+}
+
+function CertificationsSection() {
+  return (
+    <Section id="certifications" label="05 / certifications">
+      <h2 style={{ fontSize: "clamp(28px,4vw,40px)", color: "#e4e4f0", margin: "0 0 12px", fontFamily: "'Space Grotesk', sans-serif" }}>
+        Certifications
+      </h2>
+      <p style={{ color: "#9c9cb0", fontSize: 14, margin: "0 0 40px", maxWidth: 560 }}>
+        Hover the badge beside each entry for a preview of the certificate — click it to open the full image in a new tab.
+      </p>
+      <div>
+        {CONFIG.certifications.map((cert, i) => (
+          <CertificationEntry
+            key={i}
+            title={cert.name}
+            issuer={cert.issuer}
+            date={cert.date}
+            description={cert.description}
+            image={cert.image}
+            isLast={i === CONFIG.certifications.length - 1}
+          />
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+/* =========================================================================
    Resume section
    ========================================================================= */
 function ResumeSection() {
   return (
-    <Section id="resume" label="06 / dossier">
+    <Section id="resume" label="07 / dossier">
       <div style={{
         border: "1px solid rgba(168,85,247,0.25)", borderRadius: 14, padding: "40px",
         background: "rgba(255,255,255,0.02)", display: "flex", justifyContent: "space-between",
@@ -1165,7 +1297,7 @@ function PlaygroundCTA() {
    ========================================================================= */
 function ContactSection() {
   return (
-    <Section id="contact" label="08 / connect" style={{ paddingBottom: 60 }}>
+    <Section id="contact" label="09 / connect" style={{ paddingBottom: 60 }}>
       <div style={{ textAlign: "center" }}>
         <h2 style={{ fontSize: "clamp(28px,5vw,48px)", color: "#e4e4f0", margin: "0 0 16px", fontFamily: "'Space Grotesk', sans-serif" }}>
           Let's build something.
@@ -1292,7 +1424,8 @@ function Nav() {
   const links = [
     ["home", "home"], ["about", "about"], ["skills", "skills"],
     ["experience", "experience"], ["education", "education"],
-    ["projects", "projects"], ["resume", "resume"], ["contact", "contact"],
+    ["certifications", "certifications"], ["projects", "projects"],
+    ["resume", "resume"], ["contact", "contact"],
   ];
   return (
     <nav style={{
@@ -1381,6 +1514,7 @@ export default function Portfolio() {
       <AboutSection />
       <ExperienceSection />
       <EducationSection />
+      <CertificationsSection />
       <ProjectsSection />
       <ResumeSection />
       <PlaygroundCTA />
