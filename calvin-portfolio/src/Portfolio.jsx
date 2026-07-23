@@ -64,29 +64,28 @@ const CONFIG = {
       details: "Comptuer Systems, Advanced Programming with Data Structures, Theory of Computation",
     },
   ],
-  // TODO: replace each placeholder below with your real certifications, and drop the
-  // matching certificate image into /public/images/certs/ (e.g. public/images/certs/cert-1.jpg)
+images/certs/cert-1.jpg)
   certifications: [
     {
       name: "Information Technology National Olympiad",
       issuer: "S.A. COMPUTER OLYMPIAD",
       date: "2020",
       description: "Completion of Round 1 and Round 2.",
-      image: `${import.meta.env.BASE_URL}public/images/certs/cert-1.jpg`,
+      image: `${import.meta.env.BASE_URL}images/certs/cert-1.jpg`,
     },
     {
       name: "Computer Talent Search",
       issuer: "Standard Bank",
       date: "2021",
       description: "Gold ranking (Top 7% in SA).",
-      image: `${import.meta.env.BASE_URL}public/images/certs/cert-2.jpg`,
+      image: `${import.meta.env.BASE_URL}images/certs/cert-2.jpg`,
     },
     {
       name: "Generative AI Mastermind",
       issuer: "Issuing Organization",
       date: "2025",
       description: "Usage on AI for workflows, automation and everyday usage through efficient prompting.",
-      image: `${import.meta.env.BASE_URL}public/images/certs/cert-3.jpg`,
+      image: `${import.meta.env.BASE_URL}images/certs/cert-3.jpg`,
     },
   ],
   techStack: [
