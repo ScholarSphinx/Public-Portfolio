@@ -40,13 +40,23 @@ const CONFIG = {
       "I'm looking to bring that same rigor, curiosity, and attention to detail to a team that builds things people actually rely on.",
     ],
   },
-  experience: [    {
+  experience: [
+    {
       role: "Front Desk Assistant",
       org: "DNS Music",
       period: "January 2021",
       points: [
         "Managed inventory and stock records with accuracy.",
         "Supported administrative operations and maintenance coordination",
+      ],
+    },
+    {
+      role: "Prefect",
+      org: "Glenwood High School",
+      period: "2022",
+      points: [
+        "Selected as a school prefect, taking on a leadership and mentorship role within the student body.",
+        "Modelled discipline and responsibility while supporting staff with the running of school events and day-to-day duties.",
       ],
     },
   ],
