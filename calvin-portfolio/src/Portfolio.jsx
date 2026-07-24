@@ -74,7 +74,7 @@ const CONFIG = {
       date: "11 March 2020",
       description: "Awarded top speaker at the Helen Joseph Oratory Challenge.",
       images: [
-        { src: `${import.meta.env.BASE_URL}images/academic-honours/helen-joseph-top-speaker.jpg` },
+        { src: `${import.meta.env.BASE_URL}images/academic-honours/helen-joseph-top-speaker.jpeg` },
       ],
     },
     {
@@ -83,7 +83,7 @@ const CONFIG = {
       date: "2020",
       description: "Silver medal, average score of 73.75 speaker points.",
       images: [
-        { src: `${import.meta.env.BASE_URL}images/academic-honours/youth-day-derby-silver.jpg` },
+        { src: `${import.meta.env.BASE_URL}images/academic-honours/youth-day-derby-silver.jpeg` },
       ],
     },
     {
@@ -92,8 +92,8 @@ const CONFIG = {
       date: "2020",
       description: "Scored 90 A++ in both the Unprepared and Prepared Public Speaking categories.",
       images: [
-        { src: `${import.meta.env.BASE_URL}images/academic-honours/provisional-unprepared.jpg`, label: "Unprepared" },
-        { src: `${import.meta.env.BASE_URL}images/academic-honours/provisional-prepared.jpg`, label: "Prepared" },
+        { src: `${import.meta.env.BASE_URL}images/academic-honours/provisional-unprepared.jpeg`, label: "Unprepared" },
+        { src: `${import.meta.env.BASE_URL}images/academic-honours/provisional-prepared.jpeg`, label: "Prepared" },
       ],
     },
     {
@@ -102,7 +102,7 @@ const CONFIG = {
       date: "2020",
       description: "First place in the national final round of Unprepared Public Speaking.",
       images: [
-        { src: `${import.meta.env.BASE_URL}images/academic-honours/landsfinaal-1st-place.jpg` },
+        { src: `${import.meta.env.BASE_URL}images/academic-honours/landsfinaal-1st-place.jpeg` },
       ],
     },
     {
@@ -111,7 +111,7 @@ const CONFIG = {
       date: "2020",
       description: "Completion of Round 1 and Round 2.",
       images: [
-        { src: `${import.meta.env.BASE_URL}images/academic-honours/it-national-olympiad.jpg` },
+        { src: `${import.meta.env.BASE_URL}images/academic-honours/it-national-olympiad.jpeg` },
       ],
     },
     {
@@ -129,8 +129,8 @@ const CONFIG = {
       date: "23 September 2021",
       description: "Best speaker award at the QGHS Model United Nations conference.",
       images: [
-        { src: `${import.meta.env.BASE_URL}images/academic-honours/qghs-mun-best-speaker-1.jpg`, label: "Award 1" },
-        { src: `${import.meta.env.BASE_URL}images/academic-honours/qghs-mun-best-speaker-2.jpg`, label: "Award 2" },
+        { src: `${import.meta.env.BASE_URL}images/academic-honours/qghs-mun-best-speaker-1.jpeg`, label: "Award 1" },
+        { src: `${import.meta.env.BASE_URL}images/academic-honours/qghs-mun-best-speaker-2.jpeg`, label: "Award 2" },
       ],
     },
     {
@@ -139,7 +139,7 @@ const CONFIG = {
       date: "2022",
       description: "Champion of the Senior Division.",
       images: [
-        { src: `${import.meta.env.BASE_URL}images/academic-honours/dcdl-champion.jpg` },
+        { src: `${import.meta.env.BASE_URL}images/academic-honours/dcdl-champion.jpeg` },
       ],
     },
     {
@@ -148,7 +148,7 @@ const CONFIG = {
       date: "2022",
       description: "Ranked in the national Top 100.",
       images: [
-        { src: `${import.meta.env.BASE_URL}images/academic-honours/amesa-top100.jpg` },
+        { src: `${import.meta.env.BASE_URL}images/academic-honours/amesa-top100.jpeg` },
       ],
     },
     {
@@ -157,7 +157,7 @@ const CONFIG = {
       date: "2024",
       description: "Awarded Best Delegation at UKZN MUN.",
       images: [
-        { src: `${import.meta.env.BASE_URL}images/academic-honours/ukzn-mun-best-delegation.jpg` },
+        { src: `${import.meta.env.BASE_URL}images/academic-honours/ukzn-mun-best-delegation.jpeg` },
       ],
     },
   ],
@@ -174,7 +174,7 @@ const CONFIG = {
       issuer: "Durban Youth Council (DYC)",
       date: "2021",
       description: "Recognised for 131 hours of community service with the Durban Youth Council.",
-      image: `${import.meta.env.BASE_URL}images/certs/durban-youth-council-service.jpg`,
+      image: `${import.meta.env.BASE_URL}images/certs/durban-youth-council-service.jpeg`,
     },
     {
       name: "Generative AI Mastermind",
