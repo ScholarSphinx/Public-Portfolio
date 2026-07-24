@@ -65,7 +65,10 @@ const CONFIG = {
       degree: "Bachelor's Pass",
       institution: "Glenwood High School",
       period: "2018 - 2022",
-      details: "Distinction in Information Technology.",
+      details: "Distinction and Merit in Information Technology.",
+      images: [
+        { src: `${import.meta.env.BASE_URL}images/education/glenwood-matric-certificate.jpeg` },
+      ],
     },
     {
       degree: "BSc Computer Science and Information Technology",
@@ -450,11 +453,14 @@ function ParallaxBackdrop({ scrollY, reducedMotion }) {
       }} />
       <div
         style={{
-          position: "absolute", inset: "-10%",
+          position: "absolute", inset: 0,
           backgroundImage:
             "linear-gradient(rgba(168,85,247,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(168,85,247,0.07) 1px, transparent 1px)",
           backgroundSize: "48px 48px",
-          transform: `translateY(${scrollY * 0.08 * factor}px)`,
+          // Shift the tiling's phase (wrapped every 48px) instead of moving the
+          // element itself — the pattern repeats infinitely, so this drifts
+          // forever without ever running out, no matter how long the page gets.
+          backgroundPosition: `0 ${(scrollY * 0.08 * factor) % 48}px`,
         }}
       />
       <div
@@ -1142,7 +1148,7 @@ function AboutSection() {
 /* =========================================================================
    Timeline entry — shared row style for Experience and Education
    ========================================================================= */
-function TimelineEntry({ title, org, period, children, isLast }) {
+function TimelineEntry({ title, org, period, images, children, isLast }) {
   return (
     <div style={{ display: "flex", gap: 22, paddingBottom: isLast ? 0 : 30 }}>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 4 }}>
@@ -1150,13 +1156,16 @@ function TimelineEntry({ title, org, period, children, isLast }) {
         {!isLast && <span style={{ flex: 1, width: 1, background: "rgba(168,85,247,0.25)", marginTop: 4 }} />}
       </div>
       <div style={{ flex: 1, minWidth: 0, paddingBottom: 4 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginBottom: 6 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 14, marginBottom: 6 }}>
           <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 17, color: "#e4e4f0", fontWeight: 600 }}>
             {title}
           </span>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "#8b8ba0" }}>
-            {period}
-          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "#8b8ba0" }}>
+              {period}
+            </span>
+            {images && images.length > 0 && <BadgeGroup images={images} title={title} />}
+          </div>
         </div>
         <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: "#a855f7", margin: "0 0 10px" }}>
           {org}
@@ -1313,6 +1322,7 @@ function EducationSection() {
         {CONFIG.education.map((ed, i) => (
           <TimelineEntry
             key={i} title={ed.degree} org={ed.institution} period={ed.period}
+            images={ed.images}
             isLast={i === CONFIG.education.length - 1}
           >
             <p style={{ margin: 0, color: "#c2c2d4", fontSize: 14, lineHeight: 1.8 }}>{ed.details}</p>
