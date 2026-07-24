@@ -64,20 +64,117 @@ const CONFIG = {
       details: "Comptuer Systems, Advanced Programming with Data Structures, Theory of Computation",
     },
   ],
-  certifications: [
+  // Academic honours & competition results — displayed under Education, with
+  // certification-style badges. Images live in their own folder, separate
+  // from /images/certs/. Ordered chronologically (oldest first).
+  academicHonours: [
     {
-      name: "Information Technology National Olympiad",
-      issuer: "S.A. COMPUTER OLYMPIAD",
-      date: "2020",
-      description: "Completion of Round 1 and Round 2.",
-      image: `${import.meta.env.BASE_URL}images/certs/cert-1.jpeg`,
+      title: "Top Speaker — Helen Joseph Oratory Challenge",
+      issuer: "Helen Joseph Oratory Challenge",
+      date: "11 March 2020",
+      description: "Awarded top speaker at the Helen Joseph Oratory Challenge.",
+      images: [
+        { src: `${import.meta.env.BASE_URL}images/academic-honours/helen-joseph-top-speaker.jpg` },
+      ],
     },
     {
-      name: "Computer Talent Search",
+      title: "Youth Day Derby — Silver",
+      issuer: "SA Debating",
+      date: "2020",
+      description: "Silver medal, average score of 73.75 speaker points.",
+      images: [
+        { src: `${import.meta.env.BASE_URL}images/academic-honours/youth-day-derby-silver.jpg` },
+      ],
+    },
+    {
+      title: "Provisional Round (National Round) — Public Speaking, 90 A++",
+      issuer: "Interschools Public Speaking League SA",
+      date: "2020",
+      description: "Scored 90 A++ in both the Unprepared and Prepared Public Speaking categories.",
+      images: [
+        { src: `${import.meta.env.BASE_URL}images/academic-honours/provisional-unprepared.jpg`, label: "Unprepared" },
+        { src: `${import.meta.env.BASE_URL}images/academic-honours/provisional-prepared.jpg`, label: "Prepared" },
+      ],
+    },
+    {
+      title: "Landsfinaal (National Round) — Unprepared Public Speaking, 1st Place",
+      issuer: "Interschools Public Speaking League SA",
+      date: "2020",
+      description: "First place in the national final round of Unprepared Public Speaking.",
+      images: [
+        { src: `${import.meta.env.BASE_URL}images/academic-honours/landsfinaal-1st-place.jpg` },
+      ],
+    },
+    {
+      title: "Information Technology National Olympiad",
+      issuer: "S.A. Computer Olympiad",
+      date: "2020",
+      description: "Completion of Round 1 and Round 2.",
+      images: [
+        { src: `${import.meta.env.BASE_URL}images/academic-honours/it-national-olympiad.jpg` },
+      ],
+    },
+    {
+      title: "Computer Talent Search",
       issuer: "Standard Bank",
       date: "2021",
       description: "Gold ranking (Top 7% in SA).",
-      image: `${import.meta.env.BASE_URL}images/certs/cert-2.jpg`,
+      images: [
+        { src: `${import.meta.env.BASE_URL}images/academic-honours/computer-talent-search.jpg` },
+      ],
+    },
+    {
+      title: "Best Speaker Award",
+      issuer: "QueensBurgh Girls High School (QGHS) MUN",
+      date: "23 September 2021",
+      description: "Best speaker award at the QGHS Model United Nations conference.",
+      images: [
+        { src: `${import.meta.env.BASE_URL}images/academic-honours/qghs-mun-best-speaker-1.jpg`, label: "Award 1" },
+        { src: `${import.meta.env.BASE_URL}images/academic-honours/qghs-mun-best-speaker-2.jpg`, label: "Award 2" },
+      ],
+    },
+    {
+      title: "Durban Coastal Debating League Champion (Senior Division)",
+      issuer: "DCDL",
+      date: "2022",
+      description: "Champion of the Senior Division.",
+      images: [
+        { src: `${import.meta.env.BASE_URL}images/academic-honours/dcdl-champion.jpg` },
+      ],
+    },
+    {
+      title: "SA Mathematics Team Competition — Top 100",
+      issuer: "AMESA / ASSA",
+      date: "2022",
+      description: "Ranked in the national Top 100.",
+      images: [
+        { src: `${import.meta.env.BASE_URL}images/academic-honours/amesa-top100.jpg` },
+      ],
+    },
+    {
+      title: "Best Delegation",
+      issuer: "UKZN Model United Nations (UKZNDC)",
+      date: "2024",
+      description: "Awarded Best Delegation at UKZN MUN.",
+      images: [
+        { src: `${import.meta.env.BASE_URL}images/academic-honours/ukzn-mun-best-delegation.jpg` },
+      ],
+    },
+  ],
+  certifications: [
+    {
+      name: "Youth Leadership Course",
+      issuer: "Toastmasters International",
+      date: "2021",
+      description: "Completed Toastmasters International's Youth Leadership Course.",
+      image: `${import.meta.env.BASE_URL}images/certs/toastmasters-youth-leadership.jpg`,
+    },
+    {
+      name: "Certificate of Service Honours (131 Hours)",
+      issuer: "Durban Youth Council (DYC)",
+      date: "2021",
+      description: "Recognised for 131 hours of community service with the Durban Youth Council.",
+      image: `${import.meta.env.BASE_URL}images/certs/durban-youth-council-service.jpg`,
     },
     {
       name: "Generative AI Mastermind",
@@ -1086,44 +1183,22 @@ function ExperienceSection() {
 }
 
 /* =========================================================================
-   Education section
+   Shared badge-preview building blocks — used by both Academic Honours
+   entries (which may show 1 or 2 badges) and Certification entries.
    ========================================================================= */
-function EducationSection() {
-  return (
-    <Section id="education" label="04 / education">
-      <h2 style={{ fontSize: "clamp(28px,4vw,40px)", color: "#e4e4f0", margin: "0 0 40px", fontFamily: "'Space Grotesk', sans-serif" }}>
-        Academic background
-      </h2>
-      <div>
-        {CONFIG.education.map((ed, i) => (
-          <TimelineEntry
-            key={i} title={ed.degree} org={ed.institution} period={ed.period}
-            isLast={i === CONFIG.education.length - 1}
-          >
-            <p style={{ margin: 0, color: "#c2c2d4", fontSize: 14, lineHeight: 1.8 }}>{ed.details}</p>
-          </TimelineEntry>
-        ))}
-      </div>
-    </Section>
-  );
-}
-
-/* =========================================================================
-   Certifications — hover-to-preview badge, click to open the full image
-   ========================================================================= */
-function CertificationPreviewIcon({ image, title }) {
+function BadgePreviewIcon({ image, label, entryTitle }) {
   const [hovered, setHovered] = useState(false);
   return (
     <div
-      style={{ position: "relative", display: "inline-flex", flexShrink: 0 }}
+      style={{ position: "relative", display: "inline-flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
       <button
         type="button"
         onClick={() => window.open(image, "_blank", "noopener,noreferrer")}
-        aria-label={`Open ${title} certificate image`}
-        title={`View ${title} certificate`}
+        aria-label={`Open ${label ? `${entryTitle} — ${label}` : entryTitle} certificate image`}
+        title={`View ${label ? `${entryTitle} — ${label}` : entryTitle} certificate`}
         style={{
           display: "flex", alignItems: "center", justifyContent: "center",
           width: 34, height: 34, borderRadius: 8, flexShrink: 0, cursor: "pointer",
@@ -1134,6 +1209,14 @@ function CertificationPreviewIcon({ image, title }) {
       >
         <Award size={16} />
       </button>
+      {label && (
+        <span style={{
+          fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8b8ba0",
+          marginTop: 4, whiteSpace: "nowrap",
+        }}>
+          {label}
+        </span>
+      )}
       {hovered && (
         <div
           role="presentation"
@@ -1146,7 +1229,7 @@ function CertificationPreviewIcon({ image, title }) {
         >
           <img
             src={image}
-            alt={`${title} certificate preview`}
+            alt={`${label ? `${entryTitle} — ${label}` : entryTitle} certificate preview`}
             style={{ width: "100%", height: 140, objectFit: "cover", display: "block", background: "#1a1a24" }}
           />
           <div style={{
@@ -1161,6 +1244,101 @@ function CertificationPreviewIcon({ image, title }) {
   );
 }
 
+function BadgeGroup({ images, title }) {
+  if (!images || images.length === 0) return null;
+  const multi = images.length > 1;
+  return (
+    <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+      {images.map((img, i) => (
+        <BadgePreviewIcon
+          key={i}
+          image={img.src}
+          label={multi ? (img.label || `Badge ${i + 1}`) : undefined}
+          entryTitle={title}
+        />
+      ))}
+    </div>
+  );
+}
+
+/* =========================================================================
+   Education section — degrees, then Academic Honours (chronological,
+   badge-preview enabled, images in their own /images/academic-honours/ folder)
+   ========================================================================= */
+function AcademicHonourEntry({ title, issuer, date, description, images, isLast }) {
+  return (
+    <div style={{ display: "flex", gap: 22, paddingBottom: isLast ? 0 : 30 }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 4 }}>
+        <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#22d3ee", flexShrink: 0 }} />
+        {!isLast && <span style={{ flex: 1, width: 1, background: "rgba(34,211,238,0.25)", marginTop: 4 }} />}
+      </div>
+      <div style={{ flex: 1, minWidth: 0, paddingBottom: 4 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 14, marginBottom: 6 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 17, color: "#e4e4f0", fontWeight: 600 }}>
+              {title}
+            </span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "#8b8ba0" }}>
+              {date}
+            </span>
+          </div>
+          <BadgeGroup images={images} title={title} />
+        </div>
+        <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: "#22d3ee", margin: "0 0 10px" }}>
+          {issuer}
+        </p>
+        <p style={{ margin: 0, color: "#c2c2d4", fontSize: 14, lineHeight: 1.8 }}>{description}</p>
+      </div>
+    </div>
+  );
+}
+
+function EducationSection() {
+  return (
+    <Section id="education" label="04 / education">
+      <h2 style={{ fontSize: "clamp(28px,4vw,40px)", color: "#e4e4f0", margin: "0 0 40px", fontFamily: "'Space Grotesk', sans-serif" }}>
+        Education and Academic Honours
+      </h2>
+      <div style={{ marginBottom: 56 }}>
+        {CONFIG.education.map((ed, i) => (
+          <TimelineEntry
+            key={i} title={ed.degree} org={ed.institution} period={ed.period}
+            isLast={i === CONFIG.education.length - 1}
+          >
+            <p style={{ margin: 0, color: "#c2c2d4", fontSize: 14, lineHeight: 1.8 }}>{ed.details}</p>
+          </TimelineEntry>
+        ))}
+      </div>
+
+      <h3 style={{
+        fontSize: "clamp(18px,2.4vw,22px)", color: "#e4e4f0", margin: "0 0 10px",
+        fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+      }}>
+        Academic Honours
+      </h3>
+      <p style={{ color: "#9c9cb0", fontSize: 14, margin: "0 0 32px", maxWidth: 560 }}>
+        Listed chronologically. Hover a badge for a preview of the certificate — click it to open the full image in a new tab.
+      </p>
+      <div>
+        {CONFIG.academicHonours.map((h, i) => (
+          <AcademicHonourEntry
+            key={i}
+            title={h.title}
+            issuer={h.issuer}
+            date={h.date}
+            description={h.description}
+            images={h.images}
+            isLast={i === CONFIG.academicHonours.length - 1}
+          />
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+/* =========================================================================
+   Certifications — hover-to-preview badge, click to open the full image
+   ========================================================================= */
 function CertificationEntry({ title, issuer, date, description, image, isLast }) {
   return (
     <div style={{ display: "flex", gap: 22, paddingBottom: isLast ? 0 : 30 }}>
@@ -1178,7 +1356,7 @@ function CertificationEntry({ title, issuer, date, description, image, isLast })
               {date}
             </span>
           </div>
-          <CertificationPreviewIcon image={image} title={title} />
+          <BadgeGroup images={[{ src: image }]} title={title} />
         </div>
         <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: "#22d3ee", margin: "0 0 10px" }}>
           {issuer}
