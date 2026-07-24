@@ -186,7 +186,7 @@ const CONFIG = {
       name: "Certificate of Service Honours (131 Hours)",
       issuer: "Durban Youth Council (DYC)",
       date: "2021",
-      description: "Recognised for 131 hours of community service with the Durban Youth Council as the Depurty Director of Education.",
+      description: "Recognised for 131 hours of community service with the Durban Youth Council as the Deputy Director of Education.",
       image: `${import.meta.env.BASE_URL}images/certs/durban-youth-council-service.jpeg`,
     },
     {
