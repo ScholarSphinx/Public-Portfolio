@@ -70,7 +70,7 @@ const CONFIG = {
       issuer: "S.A. COMPUTER OLYMPIAD",
       date: "2020",
       description: "Completion of Round 1 and Round 2.",
-      image: `${import.meta.env.BASE_URL}images/certs/cert-1.jpg`,
+      image: `${import.meta.env.BASE_URL}images/certs/cert-1.jpeg`,
     },
     {
       name: "Computer Talent Search",
