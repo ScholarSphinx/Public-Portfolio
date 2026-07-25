@@ -2159,45 +2159,68 @@ function Hero({ scrollY, reducedMotion }) {
    viewport, filling left-to-right as the page is scrolled.
    ========================================================================= */
 /* =========================================================================
-   Custom cursor — glowing cyan ring with a trailing dot, only shown on
-   devices with a real mouse/trackpad (see useHasFinePointer). Grows and
-   brightens over links, buttons, and badge-preview icons.
+   Custom cursor — a stylized arrow (tip-anchored, like a real pointer) with
+   a soft trailing glow, only shown on devices with a real mouse/trackpad
+   (see useHasFinePointer). Grows and glows brighter over links, buttons,
+   and badge-preview icons; pulses briefly on click.
+
+   Perf notes: the arrow itself tracks the mouse every frame directly via
+   ref.style.transform (translate only — no layout, no React re-render).
+   The trailing glow's lerp animation only runs while it's still catching
+   up; once it's within half a pixel of the pointer the rAF loop stops
+   scheduling itself entirely, so nothing spins in the background while the
+   mouse is idle. Hover/click state changes (which do re-render) only
+   animate transform + opacity, never width/height/box-shadow, so there's
+   no layout thrash while moving.
    ========================================================================= */
 function CustomCursor() {
-  const ringRef = useRef(null);
-  const dotRef = useRef(null);
+  const cursorRef = useRef(null);
+  const trailRef = useRef(null);
+  const rafRef = useRef(null);
+  const animatingRef = useRef(false);
   const [hovering, setHovering] = useState(false);
   const [clicking, setClicking] = useState(false);
+  const [pulses, setPulses] = useState([]);
 
+  // Arrow tracks the mouse 1:1 (no lag — feels responsive, not clunky).
+  // The soft glow behind it eases toward the same point for a sense of trail.
   useEffect(() => {
     let mouseX = window.innerWidth / 2;
     let mouseY = window.innerHeight / 2;
-    let ringX = mouseX;
-    let ringY = mouseY;
-    let raf;
+    let trailX = mouseX;
+    let trailY = mouseY;
+
+    const animateTrail = () => {
+      const dx = mouseX - trailX;
+      const dy = mouseY - trailY;
+      trailX += dx * 0.22;
+      trailY += dy * 0.22;
+      if (trailRef.current) {
+        trailRef.current.style.transform = `translate(${trailX}px, ${trailY}px) translate(-50%, -50%)`;
+      }
+      if (Math.abs(dx) > 0.4 || Math.abs(dy) > 0.4) {
+        rafRef.current = requestAnimationFrame(animateTrail);
+      } else {
+        animatingRef.current = false;
+      }
+    };
 
     const onMove = (e) => {
       mouseX = e.clientX;
       mouseY = e.clientY;
-      if (dotRef.current) {
-        dotRef.current.style.transform = `translate(${mouseX}px, ${mouseY}px) translate(-50%, -50%)`;
+      if (cursorRef.current) {
+        cursorRef.current.style.transform = `translate(${mouseX}px, ${mouseY}px)`;
+      }
+      if (!animatingRef.current) {
+        animatingRef.current = true;
+        rafRef.current = requestAnimationFrame(animateTrail);
       }
     };
 
-    const animate = () => {
-      ringX += (mouseX - ringX) * 0.18;
-      ringY += (mouseY - ringY) * 0.18;
-      if (ringRef.current) {
-        ringRef.current.style.transform = `translate(${ringX}px, ${ringY}px) translate(-50%, -50%)`;
-      }
-      raf = requestAnimationFrame(animate);
-    };
-
-    window.addEventListener("mousemove", onMove);
-    raf = requestAnimationFrame(animate);
+    window.addEventListener("mousemove", onMove, { passive: true });
     return () => {
       window.removeEventListener("mousemove", onMove);
-      cancelAnimationFrame(raf);
+      cancelAnimationFrame(rafRef.current);
     };
   }, []);
 
@@ -2205,45 +2228,98 @@ function CustomCursor() {
     const interactive = "a, button, input, textarea, select, [role='button']";
     const onOver = (e) => { if (e.target.closest && e.target.closest(interactive)) setHovering(true); };
     const onOut = (e) => { if (e.target.closest && e.target.closest(interactive)) setHovering(false); };
-    const onDown = () => setClicking(true);
-    const onUp = () => setClicking(false);
-    document.addEventListener("mouseover", onOver);
-    document.addEventListener("mouseout", onOut);
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("mouseup", onUp);
+    document.addEventListener("mouseover", onOver, { passive: true });
+    document.addEventListener("mouseout", onOut, { passive: true });
     return () => {
       document.removeEventListener("mouseover", onOver);
       document.removeEventListener("mouseout", onOut);
+    };
+  }, []);
+
+  useEffect(() => {
+    const onDown = (e) => {
+      setClicking(true);
+      const id = `${Date.now()}-${Math.random()}`;
+      setPulses((p) => [...p, { id, x: e.clientX, y: e.clientY }]);
+      setTimeout(() => setPulses((p) => p.filter((pl) => pl.id !== id)), 500);
+    };
+    const onUp = () => setClicking(false);
+    document.addEventListener("mousedown", onDown, { passive: true });
+    document.addEventListener("mouseup", onUp, { passive: true });
+    return () => {
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("mouseup", onUp);
     };
   }, []);
 
-  const ringSize = hovering ? 46 : 28;
+  const scale = clicking ? 0.85 : hovering ? 1.25 : 1;
+
   return (
     <>
+      {/* Trailing glow — eases toward the pointer, gives a sense of motion */}
       <div
-        ref={ringRef}
+        ref={trailRef}
         aria-hidden="true"
         style={{
-          position: "fixed", top: 0, left: 0, width: ringSize, height: ringSize,
-          borderRadius: "50%", border: "1.5px solid #22d3ee",
-          background: hovering ? "rgba(34,211,238,0.08)" : "transparent",
-          boxShadow: `0 0 ${hovering ? 18 : 10}px rgba(34,211,238,${hovering ? 0.9 : 0.55})`,
-          pointerEvents: "none", zIndex: 9999, mixBlendMode: "screen",
-          opacity: clicking ? 0.5 : 1,
-          transition: "width 0.18s ease, height 0.18s ease, background 0.18s ease, box-shadow 0.18s ease, opacity 0.12s ease",
+          position: "fixed", top: 0, left: 0, width: 12, height: 12, borderRadius: "50%",
+          background: "radial-gradient(circle, rgba(34,211,238,0.55), transparent 70%)",
+          pointerEvents: "none", zIndex: 9997, willChange: "transform",
+          opacity: hovering ? 0.9 : 0.5, transition: "opacity 0.2s ease",
         }}
       />
+
+      {/* Click ripples — brief, self-removing */}
+      {pulses.map((p) => (
+        <div
+          key={p.id}
+          aria-hidden="true"
+          style={{
+            position: "fixed", top: p.y, left: p.x, width: 26, height: 26,
+            marginLeft: -13, marginTop: -13, borderRadius: "50%",
+            border: "1.5px solid #22d3ee", pointerEvents: "none", zIndex: 9998,
+            animation: "cursorPulse 0.5s ease-out forwards",
+          }}
+        />
+      ))}
+
+      {/* Arrow pointer — tip is the actual hotspot, exactly where a real cursor's is */}
       <div
-        ref={dotRef}
+        ref={cursorRef}
         aria-hidden="true"
-        style={{
-          position: "fixed", top: 0, left: 0, width: 6, height: 6, borderRadius: "50%",
-          background: "#22d3ee", boxShadow: "0 0 8px rgba(34,211,238,0.9)",
-          pointerEvents: "none", zIndex: 9999,
-        }}
-      />
+        style={{ position: "fixed", top: 0, left: 0, pointerEvents: "none", zIndex: 9999, willChange: "transform" }}
+      >
+        <svg
+          width="17" height="27" viewBox="0 0 17 27"
+          style={{
+            display: "block", overflow: "visible",
+            transform: `scale(${scale})`, transformOrigin: "0 0",
+            transition: "transform 0.15s ease, filter 0.18s ease",
+            filter: hovering
+              ? "drop-shadow(0 0 7px rgba(34,211,238,0.95)) drop-shadow(0 0 13px rgba(168,85,247,0.55))"
+              : "drop-shadow(0 0 4px rgba(34,211,238,0.65))",
+          }}
+        >
+          <path
+            d="M0 0L0 22L5.5 17L9.5 26L13 24.5L9 15.3L16.5 15.3Z"
+            fill="url(#cursorGradient)"
+            stroke="#0b0b14"
+            strokeWidth="1.1"
+            strokeLinejoin="round"
+          />
+          {hovering && (
+            <circle
+              cx="1" cy="1" r="15" fill="none" stroke="#22d3ee" strokeWidth="0.8" opacity="0.4"
+              style={{ transformOrigin: "1px 1px", animation: "cursorRingPulse 1.4s ease-in-out infinite" }}
+            />
+          )}
+          <defs>
+            <linearGradient id="cursorGradient" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#22d3ee" />
+              <stop offset="100%" stopColor="#a855f7" />
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
     </>
   );
 }
@@ -2390,7 +2466,19 @@ export default function Portfolio() {
       <ParallaxBackdrop scrollY={scrollY} reducedMotion={reducedMotion} isMobile={isMobile} />
       <JarvisHologram scrollY={scrollY} reducedMotion={reducedMotion} isMobile={isMobile} />
       <GeometricParallax scrollY={scrollY} reducedMotion={reducedMotion} isMobile={isMobile} />
-      {showCustomCursor && <style>{"* { cursor: none !important; }"}</style>}
+      {showCustomCursor && (
+        <style>{`
+          * { cursor: none !important; }
+          @keyframes cursorPulse {
+            0% { transform: scale(0.5); opacity: 0.8; }
+            100% { transform: scale(2); opacity: 0; }
+          }
+          @keyframes cursorRingPulse {
+            0%, 100% { transform: scale(0.9); opacity: 0.25; }
+            50% { transform: scale(1.15); opacity: 0.55; }
+          }
+        `}</style>
+      )}
       {showCustomCursor && <CustomCursor />}
       <ScrollProgress />
       <Nav />
