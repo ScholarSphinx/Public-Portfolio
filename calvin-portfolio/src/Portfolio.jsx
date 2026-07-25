@@ -74,7 +74,7 @@ const CONFIG = {
       degree: "BSc Computer Science and Information Technology",
       institution: "University of Kwa-Zulu Natal",
       period: "2023 — 2026",
-      details: "Comptuer Systems, Advanced Programming with Data Structures, Theory of Computation",
+      details: "Computer Systems, Advanced Programming with Data Structures, Theory of Computation",
     },
   ],
   // Academic honours & competition results — displayed under Education, with
@@ -186,12 +186,12 @@ const CONFIG = {
       name: "Certificate of Service Honours (131 Hours)",
       issuer: "Durban Youth Council (DYC)",
       date: "2021",
-      description: "Recognised for 131 hours of community service with the Durban Youth Council as the Depurty Director of Education.",
+      description: "Recognised for 131 hours of community service with the Durban Youth Council as the Deputy Director of Education.",
       image: `${import.meta.env.BASE_URL}images/certs/durban-youth-council-service.jpeg`,
     },
     {
       name: "Generative AI Mastermind",
-      issuer: "Issuing Organization",
+      issuer: "OutSkill",
       date: "2025",
       description: "Usage on AI for workflows, automation and everyday usage through efficient prompting.",
       image: `${import.meta.env.BASE_URL}images/certs/cert-3.jpg`,
@@ -291,6 +291,30 @@ function wrapTravel(offset, period) {
   return wrapped - period / 2; // (-period/2, period/2)
 }
 
+// Copies text to the clipboard, with a fallback for browsers/contexts where
+// the async Clipboard API isn't available (e.g. non-HTTPS previews).
+function copyText(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    return navigator.clipboard.writeText(text);
+  }
+  return new Promise((resolve, reject) => {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      resolve();
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
 /* =========================================================================
    Boot sequence overlay
    ========================================================================= */
@@ -335,23 +359,114 @@ function BootSequence({ onDone, skip }) {
 /* =========================================================================
    Command palette / terminal nav — the signature feature
    ========================================================================= */
+function buildSkillsTable() {
+  const maxLabel = Math.max(...CONFIG.skills.map((s) => s.subject.length));
+  const rows = CONFIG.skills.map((s) => {
+    const barLen = Math.round(s.value / 5); // scale to a 20-cell bar
+    const bar = "█".repeat(barLen) + "░".repeat(20 - barLen);
+    return `${s.subject.padEnd(maxLabel)}  ${bar}  ${s.value}%`;
+  });
+  const rule = "-".repeat(maxLabel + 30);
+  return ["SKILLS", rule, ...rows].join("\n");
+}
+
+function buildResumeText() {
+  const eduLines = CONFIG.education
+    .map((e) => `  - ${e.degree}, ${e.institution} (${e.period})`)
+    .join("\n");
+  const honourLines = CONFIG.academicHonours
+    .map((h) => `  - ${h.title} — ${h.issuer} (${h.date})`)
+    .join("\n");
+  const expLines = CONFIG.experience
+    .map((e) => `  - ${e.role}, ${e.org} (${e.period})`)
+    .join("\n");
+  const certLines = CONFIG.certifications
+    .map((c) => `  - ${c.name} — ${c.issuer} (${c.date})`)
+    .join("\n");
+  const skillLines = CONFIG.skills
+    .map((s) => `  - ${s.subject}: ${s.value}%`)
+    .join("\n");
+  return [
+    `${CONFIG.name}`,
+    `${CONFIG.title} — ${CONFIG.subtitle}`,
+    `${CONFIG.location} · ${CONFIG.email}`,
+    "",
+    "EDUCATION",
+    eduLines,
+    "",
+    "ACADEMIC HONOURS",
+    honourLines,
+    "",
+    "EXPERIENCE",
+    expLines,
+    "",
+    "CERTIFICATIONS",
+    certLines,
+    "",
+    "SKILLS",
+    skillLines,
+  ].join("\n");
+}
+
 function CommandTerminal({ open, setOpen, onNavigate, onDrive }) {
   const [input, setInput] = useState("");
   const [history, setHistory] = useState([
     "type 'help' to list commands",
   ]);
+  const [matrixActive, setMatrixActive] = useState(false);
   const inputRef = useRef(null);
+  const canvasRef = useRef(null);
 
   useEffect(() => {
     if (open && inputRef.current) inputRef.current.focus();
   }, [open]);
+
+  // "matrix" command — brief rain-of-code overlay drawn on a canvas layered
+  // over the terminal's history pane, auto-dismissing after ~2.2s.
+  useEffect(() => {
+    if (!matrixActive) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const parent = canvas.parentElement;
+    const width = parent.clientWidth;
+    const height = parent.clientHeight;
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    const fontSize = 14;
+    const columns = Math.max(1, Math.floor(width / fontSize));
+    const drops = Array(columns).fill(1);
+    const chars = "01アイウエオカキクケコサシスセソタチツテト日Ω∑λ".split("");
+
+    let frameId;
+    const draw = () => {
+      ctx.fillStyle = "rgba(11,11,20,0.15)";
+      ctx.fillRect(0, 0, width, height);
+      ctx.font = `${fontSize}px 'JetBrains Mono', monospace`;
+      drops.forEach((y, i) => {
+        const char = chars[Math.floor(Math.random() * chars.length)];
+        ctx.fillStyle = Math.random() > 0.94 ? "#e4e4f0" : "#22d3ee";
+        ctx.fillText(char, i * fontSize, y * fontSize);
+        if (y * fontSize > height && Math.random() > 0.975) drops[i] = 0;
+        drops[i] += 1;
+      });
+      frameId = requestAnimationFrame(draw);
+    };
+    draw();
+
+    const stopTimer = setTimeout(() => setMatrixActive(false), 2200);
+    return () => {
+      cancelAnimationFrame(frameId);
+      clearTimeout(stopTimer);
+    };
+  }, [matrixActive]);
 
   const run = (raw) => {
     const cmd = raw.trim().toLowerCase();
     let out = "";
     if (!cmd) return;
     if (cmd === "help") {
-      out = "commands: goto [home|about|skills|experience|education|certifications|projects|resume|contact], whoami, resume, drive, sudo hire calvin, clear, exit";
+      out = "commands: goto [home|about|skills|experience|education|certifications|projects|resume|contact], whoami, resume, cat resume, skills, matrix, drive, sudo hire calvin, clear, exit";
     } else if (cmd === "whoami") {
       out = `${CONFIG.name} — ${CONFIG.title} — access_level: OMEGA`;
     } else if (cmd.startsWith("goto ")) {
@@ -365,6 +480,13 @@ function CommandTerminal({ open, setOpen, onNavigate, onDrive }) {
     } else if (cmd === "resume") {
       onNavigate("resume");
       out = "opening resume ...";
+    } else if (cmd === "cat resume") {
+      out = buildResumeText();
+    } else if (cmd === "skills") {
+      out = buildSkillsTable();
+    } else if (cmd === "matrix") {
+      out = "wake up, calvin...";
+      setMatrixActive(true);
     } else if (cmd === "drive") {
       out = "starting engine ...";
       setOpen(false);
@@ -446,12 +568,27 @@ function CommandTerminal({ open, setOpen, onNavigate, onDrive }) {
               </span>
               <X size={16} style={{ cursor: "pointer" }} onClick={() => setOpen(false)} />
             </div>
-            <div style={{ maxHeight: 260, overflowY: "auto", padding: "12px 14px" }}>
-              {history.map((h, i) => (
-                <div key={i} style={{ color: h.startsWith("$") ? "#e4e4f0" : "#a855f7", marginBottom: 4 }}>
-                  {h}
-                </div>
-              ))}
+            <div style={{ position: "relative", minHeight: matrixActive ? 160 : undefined }}>
+              <div style={{ maxHeight: 260, overflowY: "auto", padding: "12px 14px" }}>
+                {history.map((h, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      color: h.startsWith("$") ? "#e4e4f0" : "#a855f7",
+                      marginBottom: 4, whiteSpace: "pre-wrap", lineHeight: 1.6,
+                    }}
+                  >
+                    {h}
+                  </div>
+                ))}
+              </div>
+              {matrixActive && (
+                <canvas
+                  ref={canvasRef}
+                  aria-hidden="true"
+                  style={{ position: "absolute", inset: 0, zIndex: 5, pointerEvents: "none" }}
+                />
+              )}
             </div>
             <div style={{ display: "flex", alignItems: "center", padding: "10px 14px", borderTop: "1px solid rgba(168,85,247,0.25)" }}>
               <span style={{ color: "#22d3ee", marginRight: 8 }}>$</span>
@@ -1051,6 +1188,53 @@ function SkillsSection() {
 }
 
 /* =========================================================================
+   Email link — opens the default mail client (mailto:) as before, and also
+   copies the address to the clipboard, with a brief "copied" confirmation.
+   ========================================================================= */
+function EmailLink({ children, style, ...rest }) {
+  const [copied, setCopied] = useState(false);
+  const timeoutRef = useRef(null);
+
+  const handleClick = () => {
+    copyText(CONFIG.email)
+      .then(() => {
+        setCopied(true);
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = setTimeout(() => setCopied(false), 1800);
+      })
+      .catch(() => {});
+  };
+
+  useEffect(() => () => clearTimeout(timeoutRef.current), []);
+
+  return (
+    <a
+      href={`mailto:${CONFIG.email}`}
+      onClick={handleClick}
+      style={{ position: "relative", ...style }}
+      {...rest}
+    >
+      {children}
+      {copied && (
+        <span
+          role="status"
+          style={{
+            position: "absolute", bottom: "calc(100% + 8px)", left: "50%",
+            transform: "translateX(-50%)", background: "#0b0b14",
+            border: "1px solid rgba(34,211,238,0.5)", color: "#22d3ee",
+            fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+            padding: "4px 9px", borderRadius: 6, whiteSpace: "nowrap",
+            pointerEvents: "none", boxShadow: "0 0 12px rgba(34,211,238,0.3)",
+          }}
+        >
+          copied to clipboard
+        </span>
+      )}
+    </a>
+  );
+}
+
+/* =========================================================================
    Connect row (social icons) + tech stack row — icon chips with real links
    ========================================================================= */
 function ConnectAndStack() {
@@ -1069,24 +1253,34 @@ function ConnectAndStack() {
         connect with me
       </p>
       <div style={{ display: "flex", gap: 12, marginBottom: 34, flexWrap: "wrap" }}>
-        {socials.map(({ icon: Icon, href, label }) => (
-          <a
-            key={label}
-            href={href}
-            target={href.startsWith("mailto:") ? undefined : "_blank"}
-            rel="noopener noreferrer"
-            aria-label={label}
-            title={label}
-            style={{
-              width: 44, height: 44, borderRadius: 10, display: "flex",
-              alignItems: "center", justifyContent: "center",
-              border: "1px solid rgba(168,85,247,0.3)", color: "#e4e4f0",
-              textDecoration: "none",
-            }}
-          >
-            <Icon size={18} />
-          </a>
-        ))}
+        {socials.map(({ icon: Icon, href, label }) => {
+          const chipStyle = {
+            width: 44, height: 44, borderRadius: 10, display: "flex",
+            alignItems: "center", justifyContent: "center",
+            border: "1px solid rgba(168,85,247,0.3)", color: "#e4e4f0",
+            textDecoration: "none",
+          };
+          if (label === "Email") {
+            return (
+              <EmailLink key={label} aria-label={label} title={label} style={chipStyle}>
+                <Icon size={18} />
+              </EmailLink>
+            );
+          }
+          return (
+            <a
+              key={label}
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={label}
+              title={label}
+              style={chipStyle}
+            >
+              <Icon size={18} />
+            </a>
+          );
+        })}
       </div>
 
       <p style={{
@@ -1574,7 +1768,7 @@ function ContactSection() {
           Open to internships, collaborations, and interesting systems problems.
         </p>
         <div style={{ display: "flex", justifyContent: "center", gap: 16, flexWrap: "wrap" }}>
-          <a href={`mailto:${CONFIG.email}`} style={socialBtn}><Mail size={16} /> email</a>
+          <EmailLink style={socialBtn}><Mail size={16} /> email</EmailLink>
           <a href={CONFIG.social.github} target="_blank" rel="noopener noreferrer" style={socialBtn}><Github size={16} /> github</a>
           <a href={CONFIG.social.linkedin} target="_blank" rel="noopener noreferrer" style={socialBtn}><Linkedin size={16} /> linkedin</a>
         </div>
@@ -1682,6 +1876,49 @@ function Hero({ scrollY, reducedMotion }) {
 /* =========================================================================
    Nav
    ========================================================================= */
+/* =========================================================================
+   Scroll progress indicator — thin bar pinned to the very top of the
+   viewport, filling left-to-right as the page is scrolled.
+   ========================================================================= */
+function ScrollProgress() {
+  const [progress, setProgress] = useState(0);
+  useEffect(() => {
+    const onScroll = () => {
+      const doc = document.documentElement;
+      const scrollTop = doc.scrollTop || document.body.scrollTop;
+      const scrollable = (doc.scrollHeight || document.body.scrollHeight) - doc.clientHeight;
+      setProgress(scrollable > 0 ? Math.min(100, (scrollTop / scrollable) * 100) : 0);
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, []);
+  return (
+    <div
+      role="progressbar"
+      aria-label="Scroll progress"
+      aria-valuenow={Math.round(progress)}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      style={{
+        position: "fixed", top: 0, left: 0, right: 0, height: 3, zIndex: 100,
+        background: "rgba(255,255,255,0.04)", pointerEvents: "none",
+      }}
+    >
+      <div style={{
+        height: "100%", width: `${progress}%`,
+        background: "linear-gradient(90deg, #a855f7, #22d3ee)",
+        boxShadow: "0 0 8px rgba(34,211,238,0.6)",
+        transition: "width 0.08s linear",
+      }} />
+    </div>
+  );
+}
+
 function Nav() {
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
@@ -1712,7 +1949,7 @@ function Nav() {
       </a>
       <div style={{ display: "flex", gap: 26 }}>
         {links.map(([label, id]) => (
-          <a key={id} href={`#${id}`} style={{
+          <a key={id} href={`#${id}`} className="nav-link" style={{
             fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: "#9c9cb0",
             textDecoration: "none",
           }}>
@@ -1766,6 +2003,12 @@ export default function Portfolio() {
         ::selection { background: rgba(168,85,247,0.4); color: #fff; }
         a { transition: opacity 0.15s ease, border-color 0.15s ease; }
         a:hover { opacity: 0.8; }
+        .nav-link { transition: color 0.2s ease, text-shadow 0.2s ease, opacity 0.2s ease; }
+        .nav-link:hover {
+          color: #22d3ee !important;
+          opacity: 1 !important;
+          text-shadow: 0 0 6px rgba(34,211,238,0.85), 0 0 18px rgba(34,211,238,0.5);
+        }
         @media (max-width: 640px) {
           #about > div > div { grid-template-columns: 1fr !important; }
           #about > div > div > div:first-child { width: 140px; margin: 0 auto 20px; }
@@ -1777,6 +2020,7 @@ export default function Portfolio() {
       <ParallaxBackdrop scrollY={scrollY} reducedMotion={reducedMotion} isMobile={isMobile} />
       <JarvisHologram scrollY={scrollY} reducedMotion={reducedMotion} isMobile={isMobile} />
       <GeometricParallax scrollY={scrollY} reducedMotion={reducedMotion} isMobile={isMobile} />
+      <ScrollProgress />
       <Nav />
       <Hero scrollY={scrollY} reducedMotion={reducedMotion} />
       <SkillsSection />
