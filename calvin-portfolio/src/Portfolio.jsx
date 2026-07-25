@@ -67,7 +67,7 @@ const CONFIG = {
       period: "2018 - 2022",
       details: "Distinction and Merit in Information Technology.",
       images: [
-        { src: `${import.meta.env.BASE_URL}images/education/glenwood-matric-certificate.jpg` },
+        { src: `${import.meta.env.BASE_URL}images/education/glenwood-matric-certificate.jpeg` },
       ],
     },
     {
