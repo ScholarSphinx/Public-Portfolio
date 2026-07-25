@@ -2289,21 +2289,21 @@ function CustomCursor() {
         style={{ position: "fixed", top: 0, left: 0, pointerEvents: "none", zIndex: 9999, willChange: "transform" }}
       >
         <svg
-          width="17" height="27" viewBox="0 0 17 27"
+          width="18" height="21" viewBox="0 0 18 21"
           style={{
             display: "block", overflow: "visible",
             transform: `scale(${scale})`, transformOrigin: "0 0",
             transition: "transform 0.15s ease, filter 0.18s ease",
             filter: hovering
-              ? "drop-shadow(0 0 7px rgba(34,211,238,0.95)) drop-shadow(0 0 13px rgba(168,85,247,0.55))"
-              : "drop-shadow(0 0 4px rgba(34,211,238,0.65))",
+              ? "drop-shadow(0 0 10px rgba(34,211,238,1)) drop-shadow(0 0 22px rgba(168,85,247,0.6)) drop-shadow(0 0 34px rgba(34,211,238,0.3))"
+              : "drop-shadow(0 0 6px rgba(34,211,238,0.85)) drop-shadow(0 0 15px rgba(34,211,238,0.4))",
           }}
         >
           <path
-            d="M0 0L0 22L5.5 17L9.5 26L13 24.5L9 15.3L16.5 15.3Z"
+            d="M0 0L18 7L7 9L10 20L5 16Z"
             fill="url(#cursorGradient)"
-            stroke="#0b0b14"
-            strokeWidth="1.1"
+            stroke="rgba(255,255,255,0.3)"
+            strokeWidth="0.6"
             strokeLinejoin="round"
           />
           {hovering && (
