@@ -245,6 +245,27 @@ const LANG_COLORS = {
   "C#": "#178600", default: "#a855f7",
 };
 
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+// Only real mice/trackpads get the custom cursor — touch devices have no
+// cursor to replace, and narrow-but-desktop windows should still get it, so
+// this checks pointer capability rather than viewport width.
+function useHasFinePointer() {
+  const [fine, setFine] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(hover: hover) and (pointer: fine)").matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(hover: hover) and (pointer: fine)");
+    const fn = (e) => setFine(e.matches);
+    setFine(mq.matches);
+    mq.addEventListener("change", fn);
+    return () => mq.removeEventListener("change", fn);
+  }, []);
+  return fine;
+}
+
 function useReducedMotion() {
   const [reduced, setReduced] = useState(false);
   useEffect(() => {
@@ -408,14 +429,178 @@ function buildResumeText() {
   ].join("\n");
 }
 
+/* =========================================================================
+   Snake — retro mini-game launched from the terminal via the `snake` command
+   ========================================================================= */
+function SnakeGame({ onExit }) {
+  const cell = 16;
+  const cols = 18;
+  const rows = 14;
+  const canvasRef = useRef(null);
+  const stateRef = useRef(null);
+  const [score, setScore] = useState(0);
+  const [best, setBest] = useState(0);
+  const [gameOver, setGameOver] = useState(false);
+
+  const randomFood = (occupied) => {
+    let pos;
+    do {
+      pos = { x: Math.floor(Math.random() * cols), y: Math.floor(Math.random() * rows) };
+    } while (occupied.some((seg) => seg.x === pos.x && seg.y === pos.y));
+    return pos;
+  };
+
+  const resetGame = () => {
+    const startX = Math.floor(cols / 2);
+    const startY = Math.floor(rows / 2);
+    const snake = [{ x: startX, y: startY }, { x: startX - 1, y: startY }, { x: startX - 2, y: startY }];
+    stateRef.current = { snake, dir: { x: 1, y: 0 }, nextDir: { x: 1, y: 0 }, food: randomFood(snake) };
+    setScore(0);
+    setGameOver(false);
+  };
+
+  useEffect(() => { resetGame(); }, []);
+
+  // Controls — arrow keys or WASD. Reversing directly into the snake's own
+  // body is ignored rather than ending the game immediately.
+  useEffect(() => {
+    const dirMap = {
+      ArrowUp: { x: 0, y: -1 }, w: { x: 0, y: -1 }, W: { x: 0, y: -1 },
+      ArrowDown: { x: 0, y: 1 }, s: { x: 0, y: 1 }, S: { x: 0, y: 1 },
+      ArrowLeft: { x: -1, y: 0 }, a: { x: -1, y: 0 }, A: { x: -1, y: 0 },
+      ArrowRight: { x: 1, y: 0 }, d: { x: 1, y: 0 }, D: { x: 1, y: 0 },
+    };
+    const onKey = (e) => {
+      const s = stateRef.current;
+      if (!s) return;
+      const nd = dirMap[e.key];
+      if (nd) {
+        e.preventDefault();
+        if (!(nd.x === -s.dir.x && nd.y === -s.dir.y)) s.nextDir = nd;
+      } else if (e.key === "Enter" && gameOver) {
+        resetGame();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [gameOver]);
+
+  // Game loop — fixed-tick movement, redraws every frame
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    canvas.width = cols * cell;
+    canvas.height = rows * cell;
+    const ctx = canvas.getContext("2d");
+    const tickMs = 110;
+    let last = 0;
+    let raf;
+
+    const step = () => {
+      const s = stateRef.current;
+      if (!s || gameOver) return;
+      s.dir = s.nextDir;
+      const head = s.snake[0];
+      const next = { x: head.x + s.dir.x, y: head.y + s.dir.y };
+      if (next.x < 0 || next.x >= cols || next.y < 0 || next.y >= rows) { setGameOver(true); return; }
+      if (s.snake.some((seg) => seg.x === next.x && seg.y === next.y)) { setGameOver(true); return; }
+      s.snake.unshift(next);
+      if (next.x === s.food.x && next.y === s.food.y) {
+        setScore((sc) => {
+          const nextScore = sc + 1;
+          setBest((b) => Math.max(b, nextScore));
+          return nextScore;
+        });
+        s.food = randomFood(s.snake);
+      } else {
+        s.snake.pop();
+      }
+    };
+
+    const draw = () => {
+      ctx.fillStyle = "#0b0b14";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = "rgba(168,85,247,0.07)";
+      for (let x = 0; x <= cols; x++) {
+        ctx.beginPath(); ctx.moveTo(x * cell, 0); ctx.lineTo(x * cell, rows * cell); ctx.stroke();
+      }
+      for (let y = 0; y <= rows; y++) {
+        ctx.beginPath(); ctx.moveTo(0, y * cell); ctx.lineTo(cols * cell, y * cell); ctx.stroke();
+      }
+      const s = stateRef.current;
+      if (!s) return;
+      ctx.shadowColor = "#fbbf24"; ctx.shadowBlur = 8; ctx.fillStyle = "#fbbf24";
+      ctx.fillRect(s.food.x * cell + 2, s.food.y * cell + 2, cell - 4, cell - 4);
+      ctx.shadowBlur = 0;
+      s.snake.forEach((seg, i) => {
+        ctx.fillStyle = i === 0 ? "#22d3ee" : "#a855f7";
+        ctx.shadowColor = i === 0 ? "#22d3ee" : "transparent";
+        ctx.shadowBlur = i === 0 ? 8 : 0;
+        ctx.fillRect(seg.x * cell + 1, seg.y * cell + 1, cell - 2, cell - 2);
+      });
+      ctx.shadowBlur = 0;
+      if (gameOver) {
+        ctx.fillStyle = "rgba(4,4,8,0.75)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#e4e4f0";
+        ctx.textAlign = "center";
+        ctx.font = "13px 'JetBrains Mono', monospace";
+        ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 10);
+        ctx.fillText("press enter to retry", canvas.width / 2, canvas.height / 2 + 10);
+        ctx.textAlign = "left";
+      }
+    };
+
+    const loop = (ts) => {
+      if (!last) last = ts;
+      if (ts - last > tickMs) { last = ts; step(); }
+      draw();
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [gameOver]);
+
+  return (
+    <div style={{ padding: 14, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+      <div style={{
+        display: "flex", justifyContent: "space-between", width: cols * cell,
+        fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "#9c9cb0",
+      }}>
+        <span>score: {score}</span>
+        <span>best: {best}</span>
+        <button
+          onClick={onExit}
+          style={{
+            background: "none", border: "none", color: "#5a5a6e", cursor: "pointer",
+            fontFamily: "inherit", fontSize: 12, padding: 0,
+          }}
+        >
+          esc to exit
+        </button>
+      </div>
+      <canvas ref={canvasRef} style={{ borderRadius: 6, border: "1px solid rgba(168,85,247,0.3)" }} />
+      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#5a5a6e" }}>
+        arrow keys / wasd to move
+      </div>
+    </div>
+  );
+}
+
 function CommandTerminal({ open, setOpen, onNavigate, onDrive }) {
   const [input, setInput] = useState("");
   const [history, setHistory] = useState([
     "type 'help' to list commands",
   ]);
   const [matrixActive, setMatrixActive] = useState(false);
+  const [game, setGame] = useState(null); // null | "snake"
   const inputRef = useRef(null);
   const canvasRef = useRef(null);
+
+  const closeTerminal = () => {
+    setOpen(false);
+    setGame(null);
+  };
 
   useEffect(() => {
     if (open && inputRef.current) inputRef.current.focus();
@@ -466,7 +651,7 @@ function CommandTerminal({ open, setOpen, onNavigate, onDrive }) {
     let out = "";
     if (!cmd) return;
     if (cmd === "help") {
-      out = "commands: goto [home|about|skills|experience|education|certifications|projects|resume|contact], whoami, resume, cat resume, skills, matrix, drive, sudo hire calvin, clear, exit";
+      out = "commands: goto [home|about|skills|experience|education|certifications|projects|resume|contact], whoami, resume, cat resume, skills, matrix, snake, drive, sudo hire calvin, clear, exit";
     } else if (cmd === "whoami") {
       out = `${CONFIG.name} — ${CONFIG.title} — access_level: OMEGA`;
     } else if (cmd.startsWith("goto ")) {
@@ -487,9 +672,12 @@ function CommandTerminal({ open, setOpen, onNavigate, onDrive }) {
     } else if (cmd === "matrix") {
       out = "wake up, calvin...";
       setMatrixActive(true);
+    } else if (cmd === "snake") {
+      out = "launching snake — arrow keys / wasd to move, esc to exit";
+      setGame("snake");
     } else if (cmd === "drive") {
       out = "starting engine ...";
-      setOpen(false);
+      closeTerminal();
       onDrive();
     } else if (cmd === "sudo hire calvin") {
       out = "permission granted. initiating outreach protocol — check the contact section.";
@@ -500,7 +688,7 @@ function CommandTerminal({ open, setOpen, onNavigate, onDrive }) {
       setInput("");
       return;
     } else if (cmd === "exit") {
-      setOpen(false);
+      closeTerminal();
       return;
     } else {
       out = `command not found: ${cmd} — try 'help'`;
@@ -511,6 +699,10 @@ function CommandTerminal({ open, setOpen, onNavigate, onDrive }) {
 
   useEffect(() => {
     const handler = (e) => {
+      if (game) {
+        if (e.key === "Escape") setGame(null);
+        return;
+      }
       if (e.key === "/" && document.activeElement.tagName !== "INPUT") {
         e.preventDefault();
         setOpen(true);
@@ -520,7 +712,7 @@ function CommandTerminal({ open, setOpen, onNavigate, onDrive }) {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [setOpen]);
+  }, [setOpen, game]);
 
   return (
     <>
@@ -546,7 +738,7 @@ function CommandTerminal({ open, setOpen, onNavigate, onDrive }) {
             display: "flex", alignItems: "flex-start", justifyContent: "center",
             paddingTop: "12vh",
           }}
-          onClick={() => setOpen(false)}
+          onClick={closeTerminal}
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -566,44 +758,50 @@ function CommandTerminal({ open, setOpen, onNavigate, onDrive }) {
               <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <Terminal size={14} /> calvin@portfolio:~
               </span>
-              <X size={16} style={{ cursor: "pointer" }} onClick={() => setOpen(false)} />
+              <X size={16} style={{ cursor: "pointer" }} onClick={closeTerminal} />
             </div>
-            <div style={{ position: "relative", minHeight: matrixActive ? 160 : undefined }}>
-              <div style={{ maxHeight: 260, overflowY: "auto", padding: "12px 14px" }}>
-                {history.map((h, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      color: h.startsWith("$") ? "#e4e4f0" : "#a855f7",
-                      marginBottom: 4, whiteSpace: "pre-wrap", lineHeight: 1.6,
-                    }}
-                  >
-                    {h}
+            {game === "snake" ? (
+              <SnakeGame onExit={() => setGame(null)} />
+            ) : (
+              <>
+                <div style={{ position: "relative", minHeight: matrixActive ? 160 : undefined }}>
+                  <div style={{ maxHeight: 260, overflowY: "auto", padding: "12px 14px" }}>
+                    {history.map((h, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          color: h.startsWith("$") ? "#e4e4f0" : "#a855f7",
+                          marginBottom: 4, whiteSpace: "pre-wrap", lineHeight: 1.6,
+                        }}
+                      >
+                        {h}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-              {matrixActive && (
-                <canvas
-                  ref={canvasRef}
-                  aria-hidden="true"
-                  style={{ position: "absolute", inset: 0, zIndex: 5, pointerEvents: "none" }}
-                />
-              )}
-            </div>
-            <div style={{ display: "flex", alignItems: "center", padding: "10px 14px", borderTop: "1px solid rgba(168,85,247,0.25)" }}>
-              <span style={{ color: "#22d3ee", marginRight: 8 }}>$</span>
-              <input
-                ref={inputRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && run(input)}
-                placeholder="type a command..."
-                style={{
-                  flex: 1, background: "transparent", border: "none", outline: "none",
-                  color: "#e4e4f0", fontFamily: "inherit", fontSize: 13,
-                }}
-              />
-            </div>
+                  {matrixActive && (
+                    <canvas
+                      ref={canvasRef}
+                      aria-hidden="true"
+                      style={{ position: "absolute", inset: 0, zIndex: 5, pointerEvents: "none" }}
+                    />
+                  )}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", padding: "10px 14px", borderTop: "1px solid rgba(168,85,247,0.25)" }}>
+                  <span style={{ color: "#22d3ee", marginRight: 8 }}>$</span>
+                  <input
+                    ref={inputRef}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && run(input)}
+                    placeholder="type a command..."
+                    style={{
+                      flex: 1, background: "transparent", border: "none", outline: "none",
+                      color: "#e4e4f0", fontFamily: "inherit", fontSize: 13,
+                    }}
+                  />
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -1789,6 +1987,85 @@ const socialBtn = {
 /* =========================================================================
    Hero
    ========================================================================= */
+/* =========================================================================
+   System monitor — subtle retro readout in the Hero section, simulating
+   portfolio_os's CPU load, memory heap, and active thread count.
+   ========================================================================= */
+function SystemMonitor({ reducedMotion }) {
+  const memCap = 3.2; // simulated heap ceiling, GB
+  const [cpu, setCpu] = useState(28);
+  const [mem, setMem] = useState(1.3);
+  const [threads, setThreads] = useState(6);
+  const [uptime, setUptime] = useState(0);
+  const startRef = useRef(Date.now());
+
+  useEffect(() => {
+    if (reducedMotion) return;
+    const t = setInterval(() => {
+      setCpu((c) => clamp(c + (Math.random() - 0.5) * 14, 6, 94));
+      setMem((m) => clamp(m + (Math.random() - 0.5) * 0.18, 0.6, memCap - 0.1));
+      setThreads((th) => (Math.random() > 0.8 ? clamp(th + (Math.random() > 0.5 ? 1 : -1), 3, 14) : th));
+    }, 1400);
+    return () => clearInterval(t);
+  }, [reducedMotion]);
+
+  useEffect(() => {
+    if (reducedMotion) return;
+    const t = setInterval(() => setUptime(Math.floor((Date.now() - startRef.current) / 1000)), 1000);
+    return () => clearInterval(t);
+  }, [reducedMotion]);
+
+  const fmtUptime = (s) => {
+    const hh = String(Math.floor(s / 3600)).padStart(2, "0");
+    const mm = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
+    const ss = String(s % 60).padStart(2, "0");
+    return `${hh}:${mm}:${ss}`;
+  };
+
+  const memPct = (mem / memCap) * 100;
+  const Bar = ({ pct, color }) => (
+    <div style={{ flex: 1, height: 6, borderRadius: 3, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
+      <div style={{
+        width: `${pct}%`, height: "100%", background: color,
+        boxShadow: `0 0 6px ${color}`, transition: "width 0.6s ease",
+      }} />
+    </div>
+  );
+
+  return (
+    <div style={{
+      marginTop: 36, maxWidth: 340, border: "1px solid rgba(34,211,238,0.25)",
+      borderRadius: 10, background: "rgba(11,11,20,0.55)", backdropFilter: "blur(6px)",
+      fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, color: "#9c9cb0",
+      padding: "12px 14px", boxShadow: "0 0 22px rgba(34,211,238,0.08)",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, color: "#22d3ee" }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <Cpu size={12} /> portfolio_os — system monitor
+        </span>
+        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 6px #4ade80" }} />
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 7 }}>
+        <span style={{ width: 44 }}>CPU</span>
+        <Bar pct={cpu} color="#a855f7" />
+        <span style={{ width: 34, textAlign: "right" }}>{Math.round(cpu)}%</span>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 7 }}>
+        <span style={{ width: 44 }}>MEM</span>
+        <Bar pct={memPct} color="#22d3ee" />
+        <span style={{ width: 34, textAlign: "right" }}>{Math.round(memPct)}%</span>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+        <span>heap: {mem.toFixed(1)}GB / {memCap.toFixed(1)}GB</span>
+        <span>threads: {threads} active</span>
+      </div>
+      <div style={{ marginTop: 6, color: "#5a5a6e" }}>
+        uptime {fmtUptime(uptime)}
+      </div>
+    </div>
+  );
+}
+
 function Hero({ scrollY, reducedMotion }) {
   const factor = reducedMotion ? 0 : 1;
   const [statusLine, setStatusLine] = useState(0);
@@ -1868,6 +2145,7 @@ function Hero({ scrollY, reducedMotion }) {
             <Download size={16} /> download CV
           </a>
         </div>
+        <SystemMonitor reducedMotion={reducedMotion} />
       </div>
     </Section>
   );
@@ -1880,6 +2158,96 @@ function Hero({ scrollY, reducedMotion }) {
    Scroll progress indicator — thin bar pinned to the very top of the
    viewport, filling left-to-right as the page is scrolled.
    ========================================================================= */
+/* =========================================================================
+   Custom cursor — glowing cyan ring with a trailing dot, only shown on
+   devices with a real mouse/trackpad (see useHasFinePointer). Grows and
+   brightens over links, buttons, and badge-preview icons.
+   ========================================================================= */
+function CustomCursor() {
+  const ringRef = useRef(null);
+  const dotRef = useRef(null);
+  const [hovering, setHovering] = useState(false);
+  const [clicking, setClicking] = useState(false);
+
+  useEffect(() => {
+    let mouseX = window.innerWidth / 2;
+    let mouseY = window.innerHeight / 2;
+    let ringX = mouseX;
+    let ringY = mouseY;
+    let raf;
+
+    const onMove = (e) => {
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+      if (dotRef.current) {
+        dotRef.current.style.transform = `translate(${mouseX}px, ${mouseY}px) translate(-50%, -50%)`;
+      }
+    };
+
+    const animate = () => {
+      ringX += (mouseX - ringX) * 0.18;
+      ringY += (mouseY - ringY) * 0.18;
+      if (ringRef.current) {
+        ringRef.current.style.transform = `translate(${ringX}px, ${ringY}px) translate(-50%, -50%)`;
+      }
+      raf = requestAnimationFrame(animate);
+    };
+
+    window.addEventListener("mousemove", onMove);
+    raf = requestAnimationFrame(animate);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      cancelAnimationFrame(raf);
+    };
+  }, []);
+
+  useEffect(() => {
+    const interactive = "a, button, input, textarea, select, [role='button']";
+    const onOver = (e) => { if (e.target.closest && e.target.closest(interactive)) setHovering(true); };
+    const onOut = (e) => { if (e.target.closest && e.target.closest(interactive)) setHovering(false); };
+    const onDown = () => setClicking(true);
+    const onUp = () => setClicking(false);
+    document.addEventListener("mouseover", onOver);
+    document.addEventListener("mouseout", onOut);
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("mouseup", onUp);
+    return () => {
+      document.removeEventListener("mouseover", onOver);
+      document.removeEventListener("mouseout", onOut);
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("mouseup", onUp);
+    };
+  }, []);
+
+  const ringSize = hovering ? 46 : 28;
+  return (
+    <>
+      <div
+        ref={ringRef}
+        aria-hidden="true"
+        style={{
+          position: "fixed", top: 0, left: 0, width: ringSize, height: ringSize,
+          borderRadius: "50%", border: "1.5px solid #22d3ee",
+          background: hovering ? "rgba(34,211,238,0.08)" : "transparent",
+          boxShadow: `0 0 ${hovering ? 18 : 10}px rgba(34,211,238,${hovering ? 0.9 : 0.55})`,
+          pointerEvents: "none", zIndex: 9999, mixBlendMode: "screen",
+          opacity: clicking ? 0.5 : 1,
+          transition: "width 0.18s ease, height 0.18s ease, background 0.18s ease, box-shadow 0.18s ease, opacity 0.12s ease",
+        }}
+      />
+      <div
+        ref={dotRef}
+        aria-hidden="true"
+        style={{
+          position: "fixed", top: 0, left: 0, width: 6, height: 6, borderRadius: "50%",
+          background: "#22d3ee", boxShadow: "0 0 8px rgba(34,211,238,0.9)",
+          pointerEvents: "none", zIndex: 9999,
+        }}
+      />
+    </>
+  );
+}
+
 function ScrollProgress() {
   const [progress, setProgress] = useState(0);
   useEffect(() => {
@@ -1967,6 +2335,8 @@ function Nav() {
 export default function Portfolio() {
   const reducedMotion = useReducedMotion();
   const isMobile = useIsMobile();
+  const hasFinePointer = useHasFinePointer();
+  const showCustomCursor = hasFinePointer && !reducedMotion;
   const [booted, setBooted] = useState(false);
   const [scrollY, setScrollY] = useState(0);
   const [termOpen, setTermOpen] = useState(false);
@@ -2020,6 +2390,8 @@ export default function Portfolio() {
       <ParallaxBackdrop scrollY={scrollY} reducedMotion={reducedMotion} isMobile={isMobile} />
       <JarvisHologram scrollY={scrollY} reducedMotion={reducedMotion} isMobile={isMobile} />
       <GeometricParallax scrollY={scrollY} reducedMotion={reducedMotion} isMobile={isMobile} />
+      {showCustomCursor && <style>{"* { cursor: none !important; }"}</style>}
+      {showCustomCursor && <CustomCursor />}
       <ScrollProgress />
       <Nav />
       <Hero scrollY={scrollY} reducedMotion={reducedMotion} />
