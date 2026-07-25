@@ -67,7 +67,7 @@ const CONFIG = {
       period: "2018 - 2022",
       details: "Distinction and Merit in Information Technology.",
       images: [
-        { src: `${import.meta.env.BASE_URL}images/education/glenwood-matric-certificate.jpeg` },
+        { src: `${import.meta.env.BASE_URL}images/education/glenwood-matric-certificate.jpg` },
       ],
     },
     {
@@ -186,7 +186,7 @@ const CONFIG = {
       name: "Certificate of Service Honours (131 Hours)",
       issuer: "Durban Youth Council (DYC)",
       date: "2021",
-      description: "Recognised for 131 hours of community service with the Durban Youth Council as the Deputy Director of Education.",
+      description: "Recognised for 131 hours of community service with the Durban Youth Council as the Depurty Director of Education.",
       image: `${import.meta.env.BASE_URL}images/certs/durban-youth-council-service.jpeg`,
     },
     {
@@ -255,6 +255,40 @@ function useReducedMotion() {
     return () => mq.removeEventListener("change", fn);
   }, []);
   return reduced;
+}
+
+// Narrow/phone-sized viewports stack sections taller (more wrapped text,
+// more vertical scroll distance for the same amount of "page"), so the same
+// pixel-based scroll multipliers used for the desktop parallax layers drag
+// those background elements much further off-screen on a phone. This hook
+// lets background layers dial their own motion down on small screens only —
+// desktop (isMobile === false) always keeps its original, unchanged motion.
+const MOBILE_BREAKPOINT = 768;
+const MOBILE_PARALLAX_DAMP = 0.35;
+
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== "undefined" && window.innerWidth <= MOBILE_BREAKPOINT
+  );
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth <= MOBILE_BREAKPOINT);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  return isMobile;
+}
+
+// Scroll-linked background layers (grid, blur glows, floating shapes) live in
+// a viewport-pinned, overflow-hidden container. Their translateY grows
+// without bound as the page gets scrolled, so on a long page they eventually
+// drift past the container's edge and get clipped away for good. Wrapping the
+// travel into a fixed, symmetric range makes them loop forever instead —
+// the "jump" at the wrap point happens well outside the visible box, so it's
+// never actually seen.
+function wrapTravel(offset, period) {
+  if (!period) return 0;
+  const wrapped = ((offset % period) + period) % period; // [0, period)
+  return wrapped - period / 2; // (-period/2, period/2)
 }
 
 /* =========================================================================
@@ -443,8 +477,15 @@ function CommandTerminal({ open, setOpen, onNavigate, onDrive }) {
 /* =========================================================================
    Parallax background layers
    ========================================================================= */
-function ParallaxBackdrop({ scrollY, reducedMotion }) {
-  const factor = reducedMotion ? 0 : 1;
+function ParallaxBackdrop({ scrollY, reducedMotion, isMobile }) {
+  const factor = reducedMotion ? 0 : (isMobile ? MOBILE_PARALLAX_DAMP : 1);
+  const [vh, setVh] = useState(() => (typeof window !== "undefined" ? window.innerHeight : 800));
+  useEffect(() => {
+    const onResize = () => setVh(window.innerHeight);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  const period = Math.max(vh, 400) * 2.4;
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 0, overflow: "hidden", pointerEvents: "none" }}>
       <div style={{
@@ -467,14 +508,14 @@ function ParallaxBackdrop({ scrollY, reducedMotion }) {
         style={{
           position: "absolute", width: 500, height: 500, borderRadius: "50%",
           top: -120, left: "10%", background: "rgba(168,85,247,0.18)", filter: "blur(120px)",
-          transform: `translateY(${scrollY * 0.22 * factor}px)`,
+          transform: `translateY(${wrapTravel(scrollY * 0.22 * factor, period)}px)`,
         }}
       />
       <div
         style={{
           position: "absolute", width: 420, height: 420, borderRadius: "50%",
           top: "60%", right: "8%", background: "rgba(34,211,238,0.14)", filter: "blur(120px)",
-          transform: `translateY(${scrollY * -0.15 * factor}px)`,
+          transform: `translateY(${wrapTravel(scrollY * -0.15 * factor, period)}px)`,
         }}
       />
     </div>
@@ -485,8 +526,15 @@ function ParallaxBackdrop({ scrollY, reducedMotion }) {
    Geometric parallax shapes — the "true parallax" layer. Each shape moves
    at its own speed and rotation relative to scroll, so depth is visible.
    ========================================================================= */
-function GeometricParallax({ scrollY, reducedMotion }) {
-  const f = reducedMotion ? 0 : 1;
+function GeometricParallax({ scrollY, reducedMotion, isMobile }) {
+  const f = reducedMotion ? 0 : (isMobile ? MOBILE_PARALLAX_DAMP : 1);
+  const [vh, setVh] = useState(() => (typeof window !== "undefined" ? window.innerHeight : 800));
+  useEffect(() => {
+    const onResize = () => setVh(window.innerHeight);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  const period = Math.max(vh, 400) * 2.4;
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 0, overflow: "hidden", pointerEvents: "none" }}>
       {/* Hexagon outline — slow drift, top right, near depth */}
@@ -494,7 +542,7 @@ function GeometricParallax({ scrollY, reducedMotion }) {
         width="220" height="220" viewBox="0 0 100 100"
         style={{
           position: "absolute", top: "8%", right: "6%",
-          transform: `translateY(${scrollY * 0.35 * f}px) rotate(${scrollY * 0.12 * f}deg)`,
+          transform: `translateY(${wrapTravel(scrollY * 0.35 * f, period)}px) rotate(${scrollY * 0.12 * f}deg)`,
           opacity: 0.5,
         }}
       >
@@ -506,7 +554,7 @@ function GeometricParallax({ scrollY, reducedMotion }) {
         width="140" height="140" viewBox="0 0 100 100"
         style={{
           position: "absolute", top: "38%", left: "4%",
-          transform: `translateY(${scrollY * -0.55 * f}px) rotate(${scrollY * -0.2 * f}deg)`,
+          transform: `translateY(${wrapTravel(scrollY * -0.55 * f, period)}px) rotate(${scrollY * -0.2 * f}deg)`,
           opacity: 0.4,
         }}
       >
@@ -518,7 +566,7 @@ function GeometricParallax({ scrollY, reducedMotion }) {
         width="260" height="260" viewBox="0 0 100 100"
         style={{
           position: "absolute", bottom: "4%", right: "12%",
-          transform: `translateY(${scrollY * 0.18 * f}px) rotate(${scrollY * 0.06 * f}deg)`,
+          transform: `translateY(${wrapTravel(scrollY * 0.18 * f, period)}px) rotate(${scrollY * 0.06 * f}deg)`,
           opacity: 0.3,
         }}
       >
@@ -530,7 +578,7 @@ function GeometricParallax({ scrollY, reducedMotion }) {
         width="60" height="60" viewBox="0 0 100 100"
         style={{
           position: "absolute", top: "22%", left: "48%",
-          transform: `translateY(${scrollY * 0.7 * f}px) rotate(${45 + scrollY * 0.25 * f}deg)`,
+          transform: `translateY(${wrapTravel(scrollY * 0.7 * f, period)}px) rotate(${45 + scrollY * 0.25 * f}deg)`,
           opacity: 0.35,
         }}
       >
@@ -542,11 +590,35 @@ function GeometricParallax({ scrollY, reducedMotion }) {
         width="180" height="180" viewBox="0 0 100 100"
         style={{
           position: "absolute", bottom: "20%", left: "16%",
-          transform: `translateY(${scrollY * -0.28 * f}px) rotate(${scrollY * -0.1 * f}deg)`,
+          transform: `translateY(${wrapTravel(scrollY * -0.28 * f, period)}px) rotate(${scrollY * -0.1 * f}deg)`,
           opacity: 0.3,
         }}
       >
         <circle cx="50" cy="50" r="42" fill="none" stroke="#22d3ee" strokeWidth="0.6" strokeDasharray="4 3" />
+      </svg>
+
+      {/* Small hexagon — extra density lower on the loop, opposite drift */}
+      <svg
+        width="110" height="110" viewBox="0 0 100 100"
+        style={{
+          position: "absolute", bottom: "10%", left: "26%",
+          transform: `translateY(${wrapTravel(scrollY * -0.42 * f, period)}px) rotate(${scrollY * -0.16 * f}deg)`,
+          opacity: 0.35,
+        }}
+      >
+        <polygon points="50,6 90,26 90,74 50,94 10,74 10,26" fill="none" stroke="#fbbf24" strokeWidth="0.7" />
+      </svg>
+
+      {/* Dashed ring — extra density upper left, slow opposite-phase drift */}
+      <svg
+        width="150" height="150" viewBox="0 0 100 100"
+        style={{
+          position: "absolute", top: "16%", left: "10%",
+          transform: `translateY(${wrapTravel(scrollY * 0.48 * f, period)}px) rotate(${scrollY * 0.2 * f}deg)`,
+          opacity: 0.28,
+        }}
+      >
+        <circle cx="50" cy="50" r="38" fill="none" stroke="#c084fc" strokeWidth="0.6" strokeDasharray="2 5" />
       </svg>
 
       <NeonDolphin scrollY={scrollY} f={f} />
@@ -686,8 +758,8 @@ function seededRand(seed) {
   return x - Math.floor(x);
 }
 
-function JarvisHologram({ scrollY, reducedMotion }) {
-  const f = reducedMotion ? 0 : 1;
+function JarvisHologram({ scrollY, reducedMotion, isMobile }) {
+  const f = reducedMotion ? 0 : (isMobile ? MOBILE_PARALLAX_DAMP : 1);
   const rotation = scrollY * 0.14 * f;
   const counterRotation = -scrollY * 0.09 * f;
   const size = 760;
@@ -1657,6 +1729,7 @@ function Nav() {
    ========================================================================= */
 export default function Portfolio() {
   const reducedMotion = useReducedMotion();
+  const isMobile = useIsMobile();
   const [booted, setBooted] = useState(false);
   const [scrollY, setScrollY] = useState(0);
   const [termOpen, setTermOpen] = useState(false);
@@ -1701,9 +1774,9 @@ export default function Portfolio() {
 
       {!booted && <BootSequence onDone={() => setBooted(true)} skip={reducedMotion} />}
 
-      <ParallaxBackdrop scrollY={scrollY} reducedMotion={reducedMotion} />
-      <JarvisHologram scrollY={scrollY} reducedMotion={reducedMotion} />
-      <GeometricParallax scrollY={scrollY} reducedMotion={reducedMotion} />
+      <ParallaxBackdrop scrollY={scrollY} reducedMotion={reducedMotion} isMobile={isMobile} />
+      <JarvisHologram scrollY={scrollY} reducedMotion={reducedMotion} isMobile={isMobile} />
+      <GeometricParallax scrollY={scrollY} reducedMotion={reducedMotion} isMobile={isMobile} />
       <Nav />
       <Hero scrollY={scrollY} reducedMotion={reducedMotion} />
       <SkillsSection />
