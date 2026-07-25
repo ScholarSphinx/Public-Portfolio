@@ -2459,6 +2459,34 @@ export default function Portfolio() {
           #about > div > div { grid-template-columns: 1fr !important; }
           #about > div > div > div:first-child { width: 140px; margin: 0 auto 20px; }
         }
+
+        /* Scrollbar — styled as a glowing lightsaber blade with a hilt cap */
+        html {
+          scrollbar-width: thin;
+          scrollbar-color: #22d3ee rgba(11,11,20,0.5);
+        }
+        ::-webkit-scrollbar { width: 13px; }
+        ::-webkit-scrollbar-track {
+          background: rgba(11,11,20,0.5);
+          border-left: 1px solid rgba(168,85,247,0.15);
+        }
+        ::-webkit-scrollbar-thumb {
+          background: linear-gradient(180deg, #71717a 0%, #a1a1aa 7%, #22d3ee 15%, #a5f3fc 52%, #22d3ee 100%);
+          border-radius: 7px;
+          border: 1px solid rgba(34,211,238,0.5);
+          box-shadow: 0 0 8px rgba(34,211,238,0.85), 0 0 16px rgba(34,211,238,0.45), inset 0 0 4px rgba(255,255,255,0.55);
+          animation: lightsaberGlow 2.4s ease-in-out infinite;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+          box-shadow: 0 0 12px rgba(34,211,238,1), 0 0 26px rgba(34,211,238,0.7), inset 0 0 6px rgba(255,255,255,0.8);
+        }
+        @keyframes lightsaberGlow {
+          0%, 100% { box-shadow: 0 0 8px rgba(34,211,238,0.85), 0 0 16px rgba(34,211,238,0.45), inset 0 0 4px rgba(255,255,255,0.55); }
+          50% { box-shadow: 0 0 12px rgba(34,211,238,1), 0 0 24px rgba(34,211,238,0.65), inset 0 0 6px rgba(255,255,255,0.75); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          ::-webkit-scrollbar-thumb { animation: none; }
+        }
       `}</style>
 
       {!booted && <BootSequence onDone={() => setBooted(true)} skip={reducedMotion} />}
