@@ -2324,6 +2324,81 @@ function CustomCursor() {
   );
 }
 
+/* =========================================================================
+   Lightsaber scrollbar — a custom scroll indicator replacing the native
+   scrollbar entirely. The hilt stays fixed near the top of the viewport;
+   the blade beneath it grows downward as the page is scrolled, reaching
+   full length exactly at the bottom of the page. Built as a plain overlay
+   (not scrollbar pseudo-elements), so — unlike the earlier attempt — this
+   works identically in every browser, Firefox included.
+   ========================================================================= */
+function LightsaberScrollbar() {
+  const bladeRef = useRef(null);
+
+  useEffect(() => {
+    let raf;
+    const updateBlade = () => {
+      const doc = document.documentElement;
+      const scrollTop = doc.scrollTop || document.body.scrollTop;
+      const scrollable = (doc.scrollHeight || document.body.scrollHeight) - doc.clientHeight;
+      const pct = scrollable > 0 ? clamp(scrollTop / scrollable, 0, 1) : 0;
+      if (bladeRef.current) bladeRef.current.style.transform = `scaleY(${pct})`;
+    };
+    const onScroll = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(updateBlade);
+    };
+    updateBlade();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, []);
+
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        position: "fixed", top: 74, right: 6, bottom: 88, width: 10, zIndex: 55,
+        pointerEvents: "none", display: "flex", flexDirection: "column", alignItems: "center",
+      }}
+    >
+      {/* Hilt — fixed in place, never moves */}
+      <div style={{
+        position: "relative", width: 10, height: 40, flexShrink: 0, borderRadius: 3,
+        background: "linear-gradient(180deg, #9a9aa5 0%, #55555f 45%, #2a2a30 100%)",
+        boxShadow: "inset 0 0 3px rgba(0,0,0,0.6), 0 1px 3px rgba(0,0,0,0.5)",
+        border: "1px solid rgba(0,0,0,0.4)",
+      }}>
+        <div style={{ position: "absolute", top: 9, left: 1, right: 1, height: 2, background: "rgba(0,0,0,0.4)" }} />
+        <div style={{ position: "absolute", top: 16, left: 1, right: 1, height: 2, background: "rgba(0,0,0,0.4)" }} />
+        <div style={{ position: "absolute", top: 23, left: 1, right: 1, height: 2, background: "rgba(0,0,0,0.4)" }} />
+        <div style={{
+          position: "absolute", bottom: 2, left: "50%", transform: "translateX(-50%)",
+          width: 6, height: 3, borderRadius: 2, background: "#22d3ee", boxShadow: "0 0 6px #22d3ee",
+        }} />
+      </div>
+
+      {/* Blade — anchored right under the hilt, grows downward with scroll */}
+      <div style={{ flex: 1, width: 5, marginTop: 3, position: "relative" }}>
+        <div
+          ref={bladeRef}
+          style={{
+            position: "absolute", top: 0, left: 0, width: "100%", height: "100%",
+            transformOrigin: "top", transform: "scaleY(0)", willChange: "transform",
+            borderRadius: 2.5,
+            background: "linear-gradient(180deg, #ffffff 0%, #a5f3fc 10%, #22d3ee 55%, #22d3ee 100%)",
+            boxShadow: "0 0 6px rgba(34,211,238,0.9), 0 0 14px rgba(34,211,238,0.6), 0 0 26px rgba(34,211,238,0.3)",
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
 function ScrollProgress() {
   const [progress, setProgress] = useState(0);
   useEffect(() => {
@@ -2460,33 +2535,13 @@ export default function Portfolio() {
           #about > div > div > div:first-child { width: 140px; margin: 0 auto 20px; }
         }
 
-        /* Scrollbar — styled as a glowing lightsaber blade with a hilt cap */
-        html {
-          scrollbar-width: thin;
-          scrollbar-color: #22d3ee rgba(11,11,20,0.5);
-        }
-        ::-webkit-scrollbar { width: 13px; }
-        ::-webkit-scrollbar-track {
-          background: rgba(11,11,20,0.5);
-          border-left: 1px solid rgba(168,85,247,0.15);
-        }
-        ::-webkit-scrollbar-thumb {
-          background: linear-gradient(180deg, #71717a 0%, #a1a1aa 7%, #22d3ee 15%, #a5f3fc 52%, #22d3ee 100%);
-          border-radius: 7px;
-          border: 1px solid rgba(34,211,238,0.5);
-          box-shadow: 0 0 8px rgba(34,211,238,0.85), 0 0 16px rgba(34,211,238,0.45), inset 0 0 4px rgba(255,255,255,0.55);
-          animation: lightsaberGlow 2.4s ease-in-out infinite;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-          box-shadow: 0 0 12px rgba(34,211,238,1), 0 0 26px rgba(34,211,238,0.7), inset 0 0 6px rgba(255,255,255,0.8);
-        }
-        @keyframes lightsaberGlow {
-          0%, 100% { box-shadow: 0 0 8px rgba(34,211,238,0.85), 0 0 16px rgba(34,211,238,0.45), inset 0 0 4px rgba(255,255,255,0.55); }
-          50% { box-shadow: 0 0 12px rgba(34,211,238,1), 0 0 24px rgba(34,211,238,0.65), inset 0 0 6px rgba(255,255,255,0.75); }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          ::-webkit-scrollbar-thumb { animation: none; }
-        }
+        /* Native scrollbar hidden — replaced by the LightsaberScrollbar overlay
+           below, since a real scrollbar thumb can't "grow" from a fixed point
+           the way we want the blade to. This also means the effect now works
+           identically in Firefox, since it isn't relying on scrollbar
+           pseudo-elements at all. */
+        html { scrollbar-width: none; -ms-overflow-style: none; }
+        ::-webkit-scrollbar { display: none; }
       `}</style>
 
       {!booted && <BootSequence onDone={() => setBooted(true)} skip={reducedMotion} />}
@@ -2509,6 +2564,7 @@ export default function Portfolio() {
       )}
       {showCustomCursor && <CustomCursor />}
       <ScrollProgress />
+      <LightsaberScrollbar />
       <Nav />
       <Hero scrollY={scrollY} reducedMotion={reducedMotion} />
       <SkillsSection />
