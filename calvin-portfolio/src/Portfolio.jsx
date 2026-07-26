@@ -2457,24 +2457,57 @@ function LightsaberScrollbar() {
     >
       {/* Hilt — fixed in place, never moves */}
       <div style={{
-        position: "relative", width: 10, height: 66, flexShrink: 0, borderRadius: 3,
-        background: "linear-gradient(180deg, #9a9aa5 0%, #55555f 45%, #2a2a30 100%)",
+        position: "relative", width: 10, height: 96, flexShrink: 0, borderRadius: 3,
+        background: "linear-gradient(180deg, #b8b8c2 0%, #9a9aa5 8%, #6b6b75 32%, #45454e 58%, #2a2a30 100%)",
         boxShadow: "inset 0 0 3px rgba(0,0,0,0.6), 0 1px 3px rgba(0,0,0,0.5)",
         border: "1px solid rgba(0,0,0,0.4)", pointerEvents: "none",
       }}>
-        <div style={{ position: "absolute", top: 12, left: 1, right: 1, height: 2, background: "rgba(0,0,0,0.4)" }} />
-        <div style={{ position: "absolute", top: 21, left: 1, right: 1, height: 2, background: "rgba(0,0,0,0.4)" }} />
-        <div style={{ position: "absolute", top: 30, left: 1, right: 1, height: 2, background: "rgba(0,0,0,0.4)" }} />
-        <div style={{ position: "absolute", top: 39, left: 1, right: 1, height: 2, background: "rgba(0,0,0,0.4)" }} />
-        <div style={{ position: "absolute", top: 48, left: 1, right: 1, height: 2, background: "rgba(0,0,0,0.4)" }} />
-        <div
-          ref={lightRef}
-          style={{
-            position: "absolute", bottom: 2, left: "50%", transform: "translateX(-50%)",
-            width: 6, height: 3, borderRadius: 2, background: "#3a3a42",
-            transition: "background 0.3s ease, box-shadow 0.3s ease",
-          }}
-        />
+        {/* Top cap */}
+        <div style={{
+          position: "absolute", top: 0, left: 0, right: 0, height: 5,
+          borderRadius: "2px 2px 0 0", background: "linear-gradient(180deg, #dcdce2, #9a9aa5)",
+        }} />
+
+        {/* Upper grip — ridged */}
+        <div style={{ position: "absolute", top: 10, left: 1, right: 1, height: 2, background: "rgba(0,0,0,0.4)" }} />
+        <div style={{ position: "absolute", top: 16, left: 1, right: 1, height: 2, background: "rgba(0,0,0,0.4)" }} />
+        <div style={{ position: "absolute", top: 22, left: 1, right: 1, height: 2, background: "rgba(0,0,0,0.4)" }} />
+        <div style={{ position: "absolute", top: 28, left: 1, right: 1, height: 2, background: "rgba(0,0,0,0.4)" }} />
+
+        {/* Control housing — a slightly recessed band with a small activation button */}
+        <div style={{
+          position: "absolute", top: 36, left: -1, right: -1, height: 14,
+          background: "linear-gradient(180deg, #3a3a42, #202024)",
+          border: "1px solid rgba(0,0,0,0.55)",
+        }}>
+          <div style={{
+            position: "absolute", top: 5, left: "50%", transform: "translateX(-50%)",
+            width: 4, height: 4, borderRadius: 1, background: "#f59e0b",
+            boxShadow: "0 0 3px rgba(245,158,11,0.7)",
+          }} />
+        </div>
+
+        {/* Lower grip — ridged */}
+        <div style={{ position: "absolute", top: 56, left: 1, right: 1, height: 2, background: "rgba(0,0,0,0.4)" }} />
+        <div style={{ position: "absolute", top: 62, left: 1, right: 1, height: 2, background: "rgba(0,0,0,0.4)" }} />
+        <div style={{ position: "absolute", top: 68, left: 1, right: 1, height: 2, background: "rgba(0,0,0,0.4)" }} />
+
+        {/* Emitter collar — flared shroud where the blade emerges, houses the activation light */}
+        <div style={{
+          position: "absolute", bottom: 0, left: -1, right: -1, height: 14,
+          borderRadius: "0 0 3px 3px",
+          background: "linear-gradient(180deg, #6b6b75, #232328)",
+          border: "1px solid rgba(0,0,0,0.55)",
+        }}>
+          <div
+            ref={lightRef}
+            style={{
+              position: "absolute", bottom: 2, left: "50%", transform: "translateX(-50%)",
+              width: 6, height: 3, borderRadius: 2, background: "#3a3a42",
+              transition: "background 0.3s ease, box-shadow 0.3s ease",
+            }}
+          />
+        </div>
       </div>
 
       {/* Blade — anchored right under the hilt, grows downward with scroll */}
