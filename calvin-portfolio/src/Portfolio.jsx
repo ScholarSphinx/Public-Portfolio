@@ -1173,24 +1173,27 @@ function JarvisHologram({ scrollY, reducedMotion, isMobile }) {
   });
 
   // Thick orbit rings at varying tilt angles — like a gyroscope/armillary
-  // sphere. Roughly half are drawn as full rings, half as incomplete arcs
-  // (a dash pattern sized to the ring's own perimeter, so the gap reads
-  // cleanly regardless of size). Split between the primary and meridian
-  // groups so, once scrolled, they visibly turn in opposite directions.
-  const orbitRings = Array.from({ length: 10 }, (_, i) => {
-    const flatten = 0.16 + seededRand(i * 41.3 + 60) * 0.7;
-    const rx = R * (0.5 + seededRand(i * 43.7 + 61) * 0.48);
-    const ry = rx * flatten;
+  // sphere. Every ring is the sphere's own great circle (radius R): only the
+  // tilt angle (which sets how flattened it looks, same idea as the
+  // latitude/meridian rings above) and the rotation (which axis it's tilted
+  // around) vary — so each one reads as the same ring rotated differently,
+  // not an arbitrary oval. Roughly half are drawn as incomplete arcs (a dash
+  // pattern sized to the ring's own perimeter). Split between the primary
+  // and meridian groups so, once scrolled, they visibly turn in opposite
+  // directions.
+  const orbitRings = Array.from({ length: 8 }, (_, i) => {
+    const tilt = 18 + seededRand(i * 41.3 + 60) * 68; // degrees from face-on (0) toward edge-on (90)
+    const ry = R * Math.cos((tilt * Math.PI) / 180);
     const rot = seededRand(i * 47.1 + 62) * 180;
-    const strokeWidth = 2.5 + seededRand(i * 53.3 + 63) * 3.5;
+    const strokeWidth = 2.5 + seededRand(i * 53.3 + 63) * 3;
     const incomplete = seededRand(i * 59.7 + 64) > 0.45;
-    const perim = ellipsePerimeter(rx, ry);
+    const perim = ellipsePerimeter(R, Math.abs(ry));
     const arcFraction = 0.4 + seededRand(i * 61.3 + 65) * 0.4;
     const dashOffset = seededRand(i * 67.1 + 66) * perim;
     const color = ["#fbbf24", "#f59e0b", "#fde68a"][i % 3];
     const opacity = 0.35 + seededRand(i * 71.3 + 67) * 0.4;
     const group = seededRand(i * 73.9 + 68) > 0.5 ? "primary" : "counter";
-    return { rx, ry, rot, strokeWidth, incomplete, perim, arcFraction, dashOffset, color, opacity, group };
+    return { rx: R, ry: Math.abs(ry), rot, strokeWidth, incomplete, perim, arcFraction, dashOffset, color, opacity, group };
   });
   const renderRing = (r, i) => (
     <ellipse
