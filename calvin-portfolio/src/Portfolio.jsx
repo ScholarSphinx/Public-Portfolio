@@ -2176,14 +2176,17 @@ function Hero({ scrollY, reducedMotion }) {
 function CustomCursor() {
   const cursorRef = useRef(null);
   const trailRef = useRef(null);
+  const caretRef = useRef(null);
   const rafRef = useRef(null);
   const animatingRef = useRef(false);
   const [hovering, setHovering] = useState(false);
+  const [textMode, setTextMode] = useState(false);
   const [clicking, setClicking] = useState(false);
   const [pulses, setPulses] = useState([]);
 
-  // Arrow tracks the mouse 1:1 (no lag — feels responsive, not clunky).
-  // The soft glow behind it eases toward the same point for a sense of trail.
+  // Arrow (and caret, in text fields) track the mouse 1:1 — no lag, feels
+  // responsive. The soft glow behind it eases toward the same point for a
+  // sense of trail.
   useEffect(() => {
     let mouseX = window.innerWidth / 2;
     let mouseY = window.innerHeight / 2;
@@ -2211,6 +2214,9 @@ function CustomCursor() {
       if (cursorRef.current) {
         cursorRef.current.style.transform = `translate(${mouseX}px, ${mouseY}px)`;
       }
+      if (caretRef.current) {
+        caretRef.current.style.transform = `translate(${mouseX}px, ${mouseY}px) translate(-50%, -50%)`;
+      }
       if (!animatingRef.current) {
         animatingRef.current = true;
         rafRef.current = requestAnimationFrame(animateTrail);
@@ -2224,10 +2230,20 @@ function CustomCursor() {
     };
   }, []);
 
+  // General interactive elements grow/glow the arrow. Text fields (like the
+  // terminal's command input) get their own distinct blinking caret instead,
+  // so it's obvious you're about to type rather than click.
   useEffect(() => {
-    const interactive = "a, button, input, textarea, select, [role='button']";
-    const onOver = (e) => { if (e.target.closest && e.target.closest(interactive)) setHovering(true); };
-    const onOut = (e) => { if (e.target.closest && e.target.closest(interactive)) setHovering(false); };
+    const interactive = "a, button, select, [role='button'], [role='slider']";
+    const textField = "input, textarea";
+    const onOver = (e) => {
+      if (e.target.closest && e.target.closest(textField)) setTextMode(true);
+      else if (e.target.closest && e.target.closest(interactive)) setHovering(true);
+    };
+    const onOut = (e) => {
+      if (e.target.closest && e.target.closest(textField)) setTextMode(false);
+      else if (e.target.closest && e.target.closest(interactive)) setHovering(false);
+    };
     document.addEventListener("mouseover", onOver, { passive: true });
     document.addEventListener("mouseout", onOut, { passive: true });
     return () => {
@@ -2282,11 +2298,31 @@ function CustomCursor() {
         />
       ))}
 
+      {/* Text-field caret — shown instead of the arrow over inputs/textareas */}
+      <div
+        ref={caretRef}
+        aria-hidden="true"
+        style={{
+          position: "fixed", top: 0, left: 0, pointerEvents: "none", zIndex: 9999,
+          willChange: "transform", display: textMode ? "block" : "none",
+        }}
+      >
+        <div style={{
+          width: 2, height: 18, borderRadius: 1,
+          background: "linear-gradient(180deg, #ffffff, #22d3ee)",
+          boxShadow: "0 0 6px rgba(34,211,238,0.9), 0 0 14px rgba(34,211,238,0.5)",
+          animation: "caretBlink 1s steps(1) infinite",
+        }} />
+      </div>
+
       {/* Arrow pointer — tip is the actual hotspot, exactly where a real cursor's is */}
       <div
         ref={cursorRef}
         aria-hidden="true"
-        style={{ position: "fixed", top: 0, left: 0, pointerEvents: "none", zIndex: 9999, willChange: "transform" }}
+        style={{
+          position: "fixed", top: 0, left: 0, pointerEvents: "none", zIndex: 9999,
+          willChange: "transform", display: textMode ? "none" : "block",
+        }}
       >
         <svg
           width="18" height="21" viewBox="0 0 18 21"
@@ -2334,15 +2370,25 @@ function CustomCursor() {
    ========================================================================= */
 function LightsaberScrollbar() {
   const bladeRef = useRef(null);
+  const lightRef = useRef(null);
+  const containerRef = useRef(null);
 
   useEffect(() => {
     let raf;
+    let wasOn = null; // tracks last on/off state so we only touch the DOM on actual changes
     const updateBlade = () => {
       const doc = document.documentElement;
       const scrollTop = doc.scrollTop || document.body.scrollTop;
       const scrollable = (doc.scrollHeight || document.body.scrollHeight) - doc.clientHeight;
       const pct = scrollable > 0 ? clamp(scrollTop / scrollable, 0, 1) : 0;
       if (bladeRef.current) bladeRef.current.style.transform = `scaleY(${pct})`;
+
+      const isOn = pct > 0.001;
+      if (isOn !== wasOn && lightRef.current) {
+        lightRef.current.style.background = isOn ? "#22d3ee" : "#3a3a42";
+        lightRef.current.style.boxShadow = isOn ? "0 0 6px #22d3ee" : "none";
+        wasOn = isOn;
+      }
     };
     const onScroll = () => {
       cancelAnimationFrame(raf);
@@ -2358,32 +2404,81 @@ function LightsaberScrollbar() {
     };
   }, []);
 
+  // Click-to-jump + drag-to-scroll, same interaction model as a native
+  // scrollbar track: press anywhere along it to snap to that position, or
+  // hold and drag to scrub through the page.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    let dragging = false;
+
+    const scrollToClientY = (clientY) => {
+      const rect = el.getBoundingClientRect();
+      const pct = clamp((clientY - rect.top) / rect.height, 0, 1);
+      const doc = document.documentElement;
+      const scrollable = (doc.scrollHeight || document.body.scrollHeight) - doc.clientHeight;
+      window.scrollTo({ top: pct * scrollable, behavior: "auto" });
+    };
+
+    const onDown = (e) => {
+      dragging = true;
+      document.body.style.userSelect = "none";
+      scrollToClientY(e.clientY);
+      e.preventDefault();
+    };
+    const onMove = (e) => {
+      if (dragging) scrollToClientY(e.clientY);
+    };
+    const onUp = () => {
+      dragging = false;
+      document.body.style.userSelect = "";
+    };
+
+    el.addEventListener("mousedown", onDown);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      el.removeEventListener("mousedown", onDown);
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, []);
+
   return (
     <div
-      aria-hidden="true"
+      ref={containerRef}
+      role="slider"
+      aria-label="Scroll position"
+      aria-orientation="vertical"
       style={{
-        position: "fixed", top: 74, right: 6, bottom: 88, width: 10, zIndex: 55,
-        pointerEvents: "none", display: "flex", flexDirection: "column", alignItems: "center",
+        position: "fixed", top: 74, right: 6, bottom: 88, width: 20, zIndex: 55,
+        cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center",
       }}
     >
       {/* Hilt — fixed in place, never moves */}
       <div style={{
-        position: "relative", width: 10, height: 40, flexShrink: 0, borderRadius: 3,
+        position: "relative", width: 10, height: 66, flexShrink: 0, borderRadius: 3,
         background: "linear-gradient(180deg, #9a9aa5 0%, #55555f 45%, #2a2a30 100%)",
         boxShadow: "inset 0 0 3px rgba(0,0,0,0.6), 0 1px 3px rgba(0,0,0,0.5)",
-        border: "1px solid rgba(0,0,0,0.4)",
+        border: "1px solid rgba(0,0,0,0.4)", pointerEvents: "none",
       }}>
-        <div style={{ position: "absolute", top: 9, left: 1, right: 1, height: 2, background: "rgba(0,0,0,0.4)" }} />
-        <div style={{ position: "absolute", top: 16, left: 1, right: 1, height: 2, background: "rgba(0,0,0,0.4)" }} />
-        <div style={{ position: "absolute", top: 23, left: 1, right: 1, height: 2, background: "rgba(0,0,0,0.4)" }} />
-        <div style={{
-          position: "absolute", bottom: 2, left: "50%", transform: "translateX(-50%)",
-          width: 6, height: 3, borderRadius: 2, background: "#22d3ee", boxShadow: "0 0 6px #22d3ee",
-        }} />
+        <div style={{ position: "absolute", top: 12, left: 1, right: 1, height: 2, background: "rgba(0,0,0,0.4)" }} />
+        <div style={{ position: "absolute", top: 21, left: 1, right: 1, height: 2, background: "rgba(0,0,0,0.4)" }} />
+        <div style={{ position: "absolute", top: 30, left: 1, right: 1, height: 2, background: "rgba(0,0,0,0.4)" }} />
+        <div style={{ position: "absolute", top: 39, left: 1, right: 1, height: 2, background: "rgba(0,0,0,0.4)" }} />
+        <div style={{ position: "absolute", top: 48, left: 1, right: 1, height: 2, background: "rgba(0,0,0,0.4)" }} />
+        <div
+          ref={lightRef}
+          style={{
+            position: "absolute", bottom: 2, left: "50%", transform: "translateX(-50%)",
+            width: 6, height: 3, borderRadius: 2, background: "#3a3a42",
+            transition: "background 0.3s ease, box-shadow 0.3s ease",
+          }}
+        />
       </div>
 
       {/* Blade — anchored right under the hilt, grows downward with scroll */}
-      <div style={{ flex: 1, width: 5, marginTop: 3, position: "relative" }}>
+      <div style={{ flex: 1, width: 5, marginTop: 3, position: "relative", pointerEvents: "none" }}>
         <div
           ref={bladeRef}
           style={{
@@ -2559,6 +2654,10 @@ export default function Portfolio() {
           @keyframes cursorRingPulse {
             0%, 100% { transform: scale(0.9); opacity: 0.25; }
             50% { transform: scale(1.15); opacity: 0.55; }
+          }
+          @keyframes caretBlink {
+            0%, 49% { opacity: 1; }
+            50%, 100% { opacity: 0; }
           }
         `}</style>
       )}
