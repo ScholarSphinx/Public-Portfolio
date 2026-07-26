@@ -1122,6 +1122,14 @@ function seededRand(seed) {
   return x - Math.floor(x);
 }
 
+// Approximate ellipse perimeter (Ramanujan's second approximation) — used to
+// size the dash pattern for the incomplete orbit rings below, so the arc
+// length looks right regardless of how large or flattened each ring is.
+function ellipsePerimeter(rx, ry) {
+  const h = ((rx - ry) ** 2) / ((rx + ry) ** 2);
+  return Math.PI * (rx + ry) * (1 + (3 * h) / (10 + Math.sqrt(4 - 3 * h)));
+}
+
 function JarvisHologram({ scrollY, reducedMotion, isMobile }) {
   const f = reducedMotion ? 0 : (isMobile ? MOBILE_PARALLAX_DAMP : 1);
   const rotation = scrollY * 0.14 * f;
@@ -1164,26 +1172,36 @@ function JarvisHologram({ scrollY, reducedMotion, isMobile }) {
     return { x1, y1, x2, y2 };
   });
 
-  // Soft blurred "flare"/prominence blobs across the sphere face — gives it
-  // the swirling plasma-like surface texture of a volumetric sun/orb rather
-  // than a flat wireframe. Static blur (never recomputed), so the browser
-  // rasterizes it once and just rotates the cached layer — cheap, same
-  // trick already used for the blurred glow orbs in the background.
-  const flares = Array.from({ length: 12 }, (_, i) => {
-    const a = seededRand(i * 13.7 + 20) * Math.PI * 2;
-    const r = seededRand(i * 17.3 + 21) * R * 0.78;
-    const x = cx + Math.cos(a) * r;
-    const y = cy + Math.sin(a) * r * 0.55;
-    const w = 30 + seededRand(i * 19.1 + 22) * 70;
-    const h = w * (0.32 + seededRand(i * 23.3 + 23) * 0.4);
-    const rot = seededRand(i * 29.7 + 24) * 360;
-    const warm = seededRand(i * 31.1 + 25) > 0.5;
-    return {
-      x, y, w, h, rot,
-      color: warm ? "#fde68a" : "#f59e0b",
-      opacity: 0.12 + seededRand(i * 3.7 + 26) * 0.18,
-    };
+  // Thick orbit rings at varying tilt angles — like a gyroscope/armillary
+  // sphere. Roughly half are drawn as full rings, half as incomplete arcs
+  // (a dash pattern sized to the ring's own perimeter, so the gap reads
+  // cleanly regardless of size). Split between the primary and meridian
+  // groups so, once scrolled, they visibly turn in opposite directions.
+  const orbitRings = Array.from({ length: 10 }, (_, i) => {
+    const flatten = 0.16 + seededRand(i * 41.3 + 60) * 0.7;
+    const rx = R * (0.5 + seededRand(i * 43.7 + 61) * 0.48);
+    const ry = rx * flatten;
+    const rot = seededRand(i * 47.1 + 62) * 180;
+    const strokeWidth = 2.5 + seededRand(i * 53.3 + 63) * 3.5;
+    const incomplete = seededRand(i * 59.7 + 64) > 0.45;
+    const perim = ellipsePerimeter(rx, ry);
+    const arcFraction = 0.4 + seededRand(i * 61.3 + 65) * 0.4;
+    const dashOffset = seededRand(i * 67.1 + 66) * perim;
+    const color = ["#fbbf24", "#f59e0b", "#fde68a"][i % 3];
+    const opacity = 0.35 + seededRand(i * 71.3 + 67) * 0.4;
+    const group = seededRand(i * 73.9 + 68) > 0.5 ? "primary" : "counter";
+    return { rx, ry, rot, strokeWidth, incomplete, perim, arcFraction, dashOffset, color, opacity, group };
   });
+  const renderRing = (r, i) => (
+    <ellipse
+      key={i} cx={cx} cy={cy} rx={r.rx} ry={r.ry}
+      fill="none" stroke={r.color} strokeWidth={r.strokeWidth} strokeLinecap="round"
+      opacity={r.opacity}
+      strokeDasharray={r.incomplete ? `${r.perim * r.arcFraction} ${r.perim}` : undefined}
+      strokeDashoffset={r.incomplete ? r.dashOffset : undefined}
+      transform={`rotate(${r.rot} ${cx} ${cy})`}
+    />
+  );
 
   return (
     <div
@@ -1192,49 +1210,24 @@ function JarvisHologram({ scrollY, reducedMotion, isMobile }) {
         display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden",
       }}
     >
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ position: "absolute", opacity: 0.3 }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ position: "absolute", opacity: 0.22 }}>
         <defs>
-          {/* Soft outer bloom — the fiery halo bleeding out past the sphere's edge */}
-          <radialGradient id="jarvis-halo" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.28" />
-            <stop offset="55%" stopColor="#f59e0b" stopOpacity="0.08" />
+          <radialGradient id="jarvis-glow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#fde68a" stopOpacity="0.55" />
+            <stop offset="60%" stopColor="#f59e0b" stopOpacity="0.12" />
             <stop offset="100%" stopColor="#f59e0b" stopOpacity="0" />
           </radialGradient>
-          {/* Volumetric core — highlight offset up-left, like a lit sphere rather than a flat glow */}
-          <radialGradient id="jarvis-core" cx="42%" cy="36%" r="68%">
-            <stop offset="0%" stopColor="#fffbeb" stopOpacity="0.95" />
-            <stop offset="16%" stopColor="#fde68a" stopOpacity="0.85" />
-            <stop offset="40%" stopColor="#fbbf24" stopOpacity="0.55" />
-            <stop offset="72%" stopColor="#f59e0b" stopOpacity="0.2" />
-            <stop offset="100%" stopColor="#f59e0b" stopOpacity="0" />
-          </radialGradient>
-          <clipPath id="jarvis-clip">
-            <circle cx={cx} cy={cy} r={R * 0.97} />
-          </clipPath>
         </defs>
 
-        {/* Outer halo — static, sits behind everything */}
-        <circle cx={cx} cy={cy} r={R * 1.3} fill="url(#jarvis-halo)" />
+        <circle cx={cx} cy={cy} r={R * 0.5} fill="url(#jarvis-glow)" />
 
-        {/* primary rotating group: volumetric body + flares + latitude rings + fragments + nodes */}
-        <g style={{ transform: `rotate(${rotation}deg)`, transformOrigin: `${cx}px ${cy}px`, willChange: "transform" }}>
-          <circle cx={cx} cy={cy} r={R} fill="url(#jarvis-core)" />
-
-          <g clipPath="url(#jarvis-clip)" style={{ mixBlendMode: "screen" }}>
-            {flares.map((fl, i) => (
-              <ellipse
-                key={i} cx={fl.x} cy={fl.y} rx={fl.w} ry={fl.h}
-                fill={fl.color} opacity={fl.opacity}
-                transform={`rotate(${fl.rot} ${fl.x} ${fl.y})`}
-                style={{ filter: "blur(6px)" }}
-              />
-            ))}
-          </g>
-
+        {/* primary rotating group: latitude rings + orbit rings + fragments + nodes */}
+        <g style={{ transform: `rotate(${rotation}deg)`, transformOrigin: `${cx}px ${cy}px` }}>
           <circle cx={cx} cy={cy} r={R} fill="none" stroke="#fbbf24" strokeWidth="1.1" />
           {latitudes.map((l, i) => (
             <ellipse key={i} cx={cx} cy={l.cy} rx={l.rx} ry={l.ry} fill="none" stroke="#fbbf24" strokeWidth="0.5" opacity="0.55" />
           ))}
+          {orbitRings.filter((r) => r.group === "primary").map(renderRing)}
           {fragments.map((line, i) => (
             <line
               key={i} x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2}
@@ -1250,7 +1243,7 @@ function JarvisHologram({ scrollY, reducedMotion, isMobile }) {
         </g>
 
         {/* meridian group — counter-rotates for cross-hatched depth */}
-        <g style={{ transform: `rotate(${counterRotation}deg)`, transformOrigin: `${cx}px ${cy}px`, willChange: "transform" }}>
+        <g style={{ transform: `rotate(${counterRotation}deg)`, transformOrigin: `${cx}px ${cy}px` }}>
           {meridianAngles.map((deg, i) => (
             <ellipse
               key={i} cx={cx} cy={cy} rx={R * 0.22} ry={R}
@@ -1258,14 +1251,14 @@ function JarvisHologram({ scrollY, reducedMotion, isMobile }) {
               transform={`rotate(${deg} ${cx} ${cy})`}
             />
           ))}
+          {orbitRings.filter((r) => r.group === "counter").map(renderRing)}
           <circle cx={cx} cy={cy} r={R * 0.62} fill="none" stroke="#fde68a" strokeWidth="0.5" strokeDasharray="1 6" opacity="0.5" />
         </g>
 
-        {/* innermost core — rotates fastest, tightest orbit, with a bright hot centerpoint */}
-        <g style={{ transform: `rotate(${rotation * 2.2}deg)`, transformOrigin: `${cx}px ${cy}px`, willChange: "transform" }}>
+        {/* innermost core — rotates fastest, tightest orbit */}
+        <g style={{ transform: `rotate(${rotation * 2.2}deg)`, transformOrigin: `${cx}px ${cy}px` }}>
           <circle cx={cx} cy={cy} r={R * 0.14} fill="none" stroke="#fbbf24" strokeWidth="0.9" />
           <circle cx={cx} cy={cy} r={R * 0.08} fill="none" stroke="#fde68a" strokeWidth="0.6" strokeDasharray="2 3" />
-          <circle cx={cx} cy={cy} r={R * 0.035} fill="#fffbeb" opacity="0.9" />
         </g>
       </svg>
     </div>
