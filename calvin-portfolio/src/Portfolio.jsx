@@ -59,6 +59,18 @@ const CONFIG = {
         "Modelled discipline and responsibility while supporting staff with the running of school events and day-to-day duties.",
       ],
     },
+    {
+      role: "Class Representative",
+      org: "UKZN — Statistics",
+      period: "2023",
+      points: [
+        "Served as class representative for the Statistics module, acting as the liaison between students and lecturers.",
+        "Relayed course feedback and coordinated with staff to resolve scheduling and coursework concerns.",
+      ],
+      images: [
+        { src: `${import.meta.env.BASE_URL}images/experience/ukzn-class-representative.jpeg` },
+      ],
+    },
   ],
   education: [
     {
@@ -133,7 +145,7 @@ const CONFIG = {
       date: "2021",
       description: "Gold ranking (Top 7% in SA).",
       images: [
-        { src: `${import.meta.env.BASE_URL}images/academic-honours/computer-talent-search.jpg` },
+        { src: `${import.meta.env.BASE_URL}images/academic-honours/computer-talent-search.jpeg` },
       ],
     },
     {
@@ -180,21 +192,38 @@ const CONFIG = {
       issuer: "Toastmasters International",
       date: "2021",
       description: "Completed Toastmasters International's Youth Leadership Course.",
-      image: `${import.meta.env.BASE_URL}images/certs/toastmasters-youth-leadership.jpg`,
+      images: [
+        { src: `${import.meta.env.BASE_URL}images/certs/toastmasters-youth-leadership.jpeg`, label: "Badge 1" },
+        { src: `${import.meta.env.BASE_URL}images/certs/toastmasters-youth-leadership-2.jpeg`, label: "Badge 2" },
+      ],
     },
     {
       name: "Certificate of Service Honours (131 Hours)",
       issuer: "Durban Youth Council (DYC)",
       date: "2021",
       description: "Recognised for 131 hours of community service with the Durban Youth Council as the Deputy Director of Education.",
-      image: `${import.meta.env.BASE_URL}images/certs/durban-youth-council-service.jpeg`,
+      images: [
+        { src: `${import.meta.env.BASE_URL}images/certs/durban-youth-council-service.jpeg` },
+      ],
+    },
+    {
+      name: "Shito-Ryu (Itosu-Ryu) Black Belt",
+      issuer: "Sadaaki Sakagami — 4th Generation Soke & President, Itosu-Ryu Karatedo International Federation",
+      date: "2025",
+      description: "Black belt awarded in Shito-Ryu karate as a diploma from Japan.",
+      images: [
+        { src: `${import.meta.env.BASE_URL}images/certs/shito-ryu-black-belt-1.jpeg`, label: "Badge 1" },
+        { src: `${import.meta.env.BASE_URL}images/certs/shito-ryu-black-belt-2.jpeg`, label: "Badge 2" },
+      ],
     },
     {
       name: "Generative AI Mastermind",
       issuer: "OutSkill",
       date: "2025",
       description: "Usage on AI for workflows, automation and everyday usage through efficient prompting.",
-      image: `${import.meta.env.BASE_URL}images/certs/cert-3.jpg`,
+      images: [
+        { src: `${import.meta.env.BASE_URL}images/certs/cert-3.jpg` },
+      ],
     },
   ],
   techStack: [
@@ -1653,6 +1682,7 @@ function ExperienceSection() {
         {CONFIG.experience.map((job, i) => (
           <TimelineEntry
             key={i} title={job.role} org={job.org} period={job.period}
+            images={job.images}
             isLast={i === CONFIG.experience.length - 1}
           >
             <ul style={{ margin: 0, paddingLeft: 18, color: "#c2c2d4", fontSize: 14, lineHeight: 1.8 }}>
@@ -1823,7 +1853,7 @@ function EducationSection() {
 /* =========================================================================
    Certifications — hover-to-preview badge, click to open the full image
    ========================================================================= */
-function CertificationEntry({ title, issuer, date, description, image, isLast }) {
+function CertificationEntry({ title, issuer, date, description, images, isLast }) {
   return (
     <div style={{ display: "flex", gap: 22, paddingBottom: isLast ? 0 : 30 }}>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 4 }}>
@@ -1840,7 +1870,7 @@ function CertificationEntry({ title, issuer, date, description, image, isLast })
               {date}
             </span>
           </div>
-          <BadgeGroup images={[{ src: image }]} title={title} />
+          <BadgeGroup images={images} title={title} />
         </div>
         <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: "#22d3ee", margin: "0 0 10px" }}>
           {issuer}
@@ -1868,7 +1898,7 @@ function CertificationsSection() {
             issuer={cert.issuer}
             date={cert.date}
             description={cert.description}
-            image={cert.image}
+            images={cert.images}
             isLast={i === CONFIG.certifications.length - 1}
           />
         ))}
