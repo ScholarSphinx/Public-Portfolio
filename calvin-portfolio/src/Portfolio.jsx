@@ -2457,48 +2457,79 @@ function LightsaberScrollbar() {
     >
       {/* Hilt — fixed in place, never moves */}
       <div style={{
-        position: "relative", width: 10, height: 96, flexShrink: 0, borderRadius: 3,
+        position: "relative", width: 10, height: 104, flexShrink: 0, borderRadius: 3,
         background: "linear-gradient(180deg, #b8b8c2 0%, #9a9aa5 8%, #6b6b75 32%, #45454e 58%, #2a2a30 100%)",
         boxShadow: "inset 0 0 3px rgba(0,0,0,0.6), 0 1px 3px rgba(0,0,0,0.5)",
         border: "1px solid rgba(0,0,0,0.4)", pointerEvents: "none",
       }}>
-        {/* Top cap */}
+        {/* Specular highlight — thin lighter rail down one side, fakes a
+            cylindrical/metallic form on an otherwise flat shape */}
         <div style={{
-          position: "absolute", top: 0, left: 0, right: 0, height: 5,
-          borderRadius: "2px 2px 0 0", background: "linear-gradient(180deg, #dcdce2, #9a9aa5)",
+          position: "absolute", top: 4, bottom: 4, left: 1.5, width: 1,
+          background: "linear-gradient(180deg, rgba(255,255,255,0.55), rgba(255,255,255,0.1) 60%, rgba(255,255,255,0.35))",
         }} />
 
-        {/* Upper grip — ridged */}
-        <div style={{ position: "absolute", top: 10, left: 1, right: 1, height: 2, background: "rgba(0,0,0,0.4)" }} />
-        <div style={{ position: "absolute", top: 16, left: 1, right: 1, height: 2, background: "rgba(0,0,0,0.4)" }} />
-        <div style={{ position: "absolute", top: 22, left: 1, right: 1, height: 2, background: "rgba(0,0,0,0.4)" }} />
-        <div style={{ position: "absolute", top: 28, left: 1, right: 1, height: 2, background: "rgba(0,0,0,0.4)" }} />
-
-        {/* Control housing — a slightly recessed band with a small activation button */}
+        {/* Pommel cap with a small center jewel/bolt */}
         <div style={{
-          position: "absolute", top: 36, left: -1, right: -1, height: 14,
-          background: "linear-gradient(180deg, #3a3a42, #202024)",
-          border: "1px solid rgba(0,0,0,0.55)",
+          position: "absolute", top: 0, left: 0, right: 0, height: 6,
+          borderRadius: "2px 2px 0 0", background: "linear-gradient(180deg, #dcdce2, #9a9aa5)",
         }}>
           <div style={{
-            position: "absolute", top: 5, left: "50%", transform: "translateX(-50%)",
-            width: 4, height: 4, borderRadius: 1, background: "#f59e0b",
-            boxShadow: "0 0 3px rgba(245,158,11,0.7)",
+            position: "absolute", top: 1.5, left: "50%", transform: "translateX(-50%)",
+            width: 3, height: 3, borderRadius: "50%",
+            background: "radial-gradient(circle at 35% 35%, #f4f4f8, #6b6b75)",
           }} />
         </div>
 
+        {/* Upper grip — ridged, with a pair of small rivets */}
+        <div style={{ position: "absolute", top: 12, left: 1, right: 1, height: 2, background: "rgba(0,0,0,0.4)" }} />
+        <div style={{ position: "absolute", top: 18, left: 1, right: 1, height: 2, background: "rgba(0,0,0,0.4)" }} />
+        <div style={{ position: "absolute", top: 24, left: -0.5, width: 1.5, height: 1.5, borderRadius: "50%", background: "#1c1c20" }} />
+        <div style={{ position: "absolute", top: 24, right: -0.5, width: 1.5, height: 1.5, borderRadius: "50%", background: "#1c1c20" }} />
+        <div style={{ position: "absolute", top: 24, left: 1, right: 1, height: 2, background: "rgba(0,0,0,0.4)" }} />
+        <div style={{ position: "absolute", top: 30, left: 1, right: 1, height: 2, background: "rgba(0,0,0,0.4)" }} />
+
+        {/* Copper accent ring — a small band of colour before the control housing */}
+        <div style={{
+          position: "absolute", top: 35, left: -1, right: -1, height: 3,
+          background: "linear-gradient(180deg, #e0a868, #b5793a)",
+          boxShadow: "0 0 2px rgba(181,121,58,0.6)",
+        }} />
+
+        {/* Control housing — recessed band with vent slits and an activation button */}
+        <div style={{
+          position: "absolute", top: 40, left: -1, right: -1, height: 16,
+          background: "linear-gradient(180deg, #3a3a42, #202024)",
+          border: "1px solid rgba(0,0,0,0.55)",
+        }}>
+          <div style={{ position: "absolute", top: 2.5, left: 1.5, right: 1.5, height: 0.75, background: "rgba(0,0,0,0.5)" }} />
+          <div style={{
+            position: "absolute", top: 6, left: "50%", transform: "translateX(-50%)",
+            width: 4, height: 4, borderRadius: 1, background: "#f59e0b",
+            boxShadow: "0 0 3px rgba(245,158,11,0.7)",
+          }} />
+          <div style={{ position: "absolute", bottom: 2.5, left: 1.5, right: 1.5, height: 0.75, background: "rgba(0,0,0,0.5)" }} />
+        </div>
+
         {/* Lower grip — ridged */}
-        <div style={{ position: "absolute", top: 56, left: 1, right: 1, height: 2, background: "rgba(0,0,0,0.4)" }} />
         <div style={{ position: "absolute", top: 62, left: 1, right: 1, height: 2, background: "rgba(0,0,0,0.4)" }} />
         <div style={{ position: "absolute", top: 68, left: 1, right: 1, height: 2, background: "rgba(0,0,0,0.4)" }} />
+        <div style={{ position: "absolute", top: 74, left: 1, right: 1, height: 2, background: "rgba(0,0,0,0.4)" }} />
+
+        {/* Belt clip — small nub on the side, purely decorative */}
+        <div style={{
+          position: "absolute", top: 78, right: -2.5, width: 3, height: 9, borderRadius: 1,
+          background: "linear-gradient(90deg, #6b6b75, #3a3a42)", border: "1px solid rgba(0,0,0,0.5)",
+        }} />
 
         {/* Emitter collar — flared shroud where the blade emerges, houses the activation light */}
         <div style={{
-          position: "absolute", bottom: 0, left: -1, right: -1, height: 14,
+          position: "absolute", bottom: 0, left: -1, right: -1, height: 15,
           borderRadius: "0 0 3px 3px",
           background: "linear-gradient(180deg, #6b6b75, #232328)",
           border: "1px solid rgba(0,0,0,0.55)",
         }}>
+          <div style={{ position: "absolute", top: 2, left: 1.5, right: 1.5, height: 0.75, background: "rgba(0,0,0,0.45)" }} />
           <div
             ref={lightRef}
             style={{
