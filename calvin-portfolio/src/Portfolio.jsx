@@ -25,6 +25,7 @@ const CONFIG = {
     github: "https://github.com/ScholarSphinx",
     linkedin: "https://www.linkedin.com/in/calvin-pillay-654002256",
     instagram: "https://www.instagram.com/pilcal22",
+    clashOfClans: "https://link.clashofclans.com/en?action=OpenPlayerProfile&tag=PLU98L8JQ",
   },
   location: "Durban, South Africa",
   dob: "2004-08-19", // 19/08/2004 — used to render DOB + a live, self-updating age
@@ -458,6 +459,51 @@ function buildResumeText() {
   ].join("\n");
 }
 
+// Original hooded-figure ASCII art for the `creed` easter egg — not a
+// recreation of Ubisoft's actual Assassin's Creed insignia, which is
+// trademarked artwork.
+function buildCreedArt() {
+  return [
+    "─────────────────█─────────────────",
+    "────────────────███────────────────",
+    "───────────────█████───────────────",
+    "───────────────█████───────────────",
+    "──────────────██─████──────────────",
+    "──────────────██──███──────────────",
+    "─────────────███──████─────────────",
+    "─────────────██────███─────────────",
+    "────────────███────████────────────",
+    "────────────██──────████───────────",
+    "───────────███──────████───────────",
+    "───────────██────────████──────────",
+    "──────────███────────████──────────",
+    "──────────██──────────████─────────",
+    "─────────███──────────████─────────",
+    "─────────██────────────████────────",
+    "────────███─────────────███────────",
+    "───────████─────────────████───────",
+    "▄───▄▄████───────────────█████────▄",
+    "▀█████████───────────────█████████▀",
+    "──███████─────────────────███████──",
+    "───██████─────────────────██████───",
+    "───█████───────────────────█████───",
+    "───█████───────────────────█████───",
+    "──█████─────────────────────█████──",
+    "▄██████─────────────────────██████▄",
+    "▀──▀███─────────────────────███▀──▀",
+    "────▀███▄─────────────────▄███▀────",
+    "▀▄─────▀██▄▄───────────▄▄██▀─────▄▀",
+    "──▀▄─────▀▀██▄▄──▄──▄▄██▀▀─────▄▀──",
+    "────█▄──────────▄█▄──────────▄█────",
+    "─────▀██▄──────▄███▄──────▄▄█▀─────",
+    "───────▀███▄▄▄███████▄▄▄███▀───────",
+    "──────────▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀──────────",
+    "",
+    "  \"nothing is true, everything is permitted\"",
+    "  — an original tribute, not the actual Assassin's Creed insignia",
+  ].join("\n");
+}
+
 /* =========================================================================
    Snake — retro mini-game launched from the terminal via the `snake` command
    ========================================================================= */
@@ -680,7 +726,7 @@ function CommandTerminal({ open, setOpen, onNavigate, onDrive }) {
     let out = "";
     if (!cmd) return;
     if (cmd === "help") {
-      out = "commands: goto [home|about|skills|experience|education|certifications|projects|resume|contact], whoami, resume, cat resume, skills, matrix, snake, drive, sudo hire calvin, clear, exit";
+      out = "commands: goto [home|about|skills|experience|education|certifications|projects|resume|contact], whoami, resume, cat resume, skills, matrix, snake, creed, drive, sudo hire calvin, clear, exit";
     } else if (cmd === "whoami") {
       out = `${CONFIG.name} — ${CONFIG.title} — access_level: OMEGA`;
     } else if (cmd.startsWith("goto ")) {
@@ -704,6 +750,8 @@ function CommandTerminal({ open, setOpen, onNavigate, onDrive }) {
     } else if (cmd === "snake") {
       out = "launching snake — arrow keys / wasd to move, esc to exit";
       setGame("snake");
+    } else if (cmd === "creed") {
+      out = buildCreedArt();
     } else if (cmd === "drive") {
       out = "starting engine ...";
       closeTerminal();
@@ -2029,6 +2077,43 @@ function PlaygroundCTA() {
 /* =========================================================================
    Contact section
    ========================================================================= */
+/* =========================================================================
+   Crossed swords — a custom icon for the Clash of Clans link. Styled with
+   metallic blade shading and gold pommel accents to evoke the game's look,
+   but deliberately not a recreation of Supercell's specific circular badge
+   artwork (crossed swords alone are common, generic gaming iconography).
+   ========================================================================= */
+function CrossedSwordsIcon({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="cocBladeA" x1="0" y1="1" x2="1" y2="0">
+          <stop offset="0%" stopColor="#71717a" />
+          <stop offset="50%" stopColor="#f4f4f5" />
+          <stop offset="100%" stopColor="#d4d4d8" />
+        </linearGradient>
+        <linearGradient id="cocBladeB" x1="1" y1="1" x2="0" y2="0">
+          <stop offset="0%" stopColor="#71717a" />
+          <stop offset="50%" stopColor="#f4f4f5" />
+          <stop offset="100%" stopColor="#d4d4d8" />
+        </linearGradient>
+      </defs>
+
+      {/* Blade — bottom-left grip to top-right tip */}
+      <line x1="3.2" y1="20.8" x2="19.2" y2="4.8" stroke="url(#cocBladeA)" strokeWidth="2" strokeLinecap="round" />
+      <line x1="3.2" y1="20.8" x2="6.4" y2="18" stroke="#78350f" strokeWidth="2.6" strokeLinecap="round" />
+      <line x1="14" y1="4.4" x2="18" y2="8.4" stroke="#b45309" strokeWidth="2.2" strokeLinecap="round" />
+      <circle cx="19.2" cy="4.8" r="1.15" fill="#fbbf24" />
+
+      {/* Blade — bottom-right grip to top-left tip */}
+      <line x1="20.8" y1="20.8" x2="4.8" y2="4.8" stroke="url(#cocBladeB)" strokeWidth="2" strokeLinecap="round" />
+      <line x1="20.8" y1="20.8" x2="17.6" y2="18" stroke="#78350f" strokeWidth="2.6" strokeLinecap="round" />
+      <line x1="10" y1="4.4" x2="6" y2="8.4" stroke="#b45309" strokeWidth="2.2" strokeLinecap="round" />
+      <circle cx="4.8" cy="4.8" r="1.15" fill="#fbbf24" />
+    </svg>
+  );
+}
+
 function ContactSection() {
   return (
     <Section id="contact" label="09 / connect" style={{ paddingBottom: 60 }}>
@@ -2043,6 +2128,7 @@ function ContactSection() {
           <EmailLink style={socialBtn}><Mail size={16} /> email</EmailLink>
           <a href={CONFIG.social.github} target="_blank" rel="noopener noreferrer" style={socialBtn}><Github size={16} /> github</a>
           <a href={CONFIG.social.linkedin} target="_blank" rel="noopener noreferrer" style={socialBtn}><Linkedin size={16} /> linkedin</a>
+          <a href={CONFIG.social.clashOfClans} target="_blank" rel="noopener noreferrer" style={socialBtn}><CrossedSwordsIcon size={16} /> clash of clans</a>
         </div>
         <p style={{ marginTop: 60, fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "#5a5a6e" }}>
           press "/" to open the terminal · {CONFIG.location}
