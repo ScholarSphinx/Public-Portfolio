@@ -459,9 +459,6 @@ function buildResumeText() {
   ].join("\n");
 }
 
-// Original hooded-figure ASCII art for the `creed` easter egg — not a
-// recreation of Ubisoft's actual Assassin's Creed insignia, which is
-// trademarked artwork.
 function buildCreedArt() {
   return [
     "─────────────────█─────────────────",
@@ -500,7 +497,6 @@ function buildCreedArt() {
     "──────────▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀──────────",
     "",
     "  \"nothing is true, everything is permitted\"",
-    "  — an original tribute, not the actual Assassin's Creed insignia",
   ].join("\n");
 }
 
