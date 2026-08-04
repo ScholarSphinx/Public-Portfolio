@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useContext, createContext } from "react";
+import React, { useState, useEffect, useRef, useCallback, useContext, createContext, useMemo } from "react";
 import {
   Github, Linkedin, Mail, Terminal, ExternalLink, Star, GitFork,
   Download, ChevronRight, X, Cpu, Lock, Radio, ArrowUpRight, Instagram, Binary, User, Car, Award, Trophy
@@ -1671,6 +1671,335 @@ function ProjectsSection() {
 }
 
 /* =========================================================================
+   GitHub Contribution Galaxy — the classic contribution squares, plus the
+   same activity plotted as commits floating in 3D around a slowly spinning
+   globe. Squares come from a public contribution-calendar mirror (GitHub's
+   own REST API doesn't expose the calendar without auth); the galaxy is
+   built from real recent commits pulled off the public events API, with
+   per-repo language resolved via the repos endpoint (best-effort, capped
+   to keep unauthenticated rate limits in check).
+   ========================================================================= */
+function useGithubActivity() {
+  const [squares, setSquares] = useState(null);
+  const [squaresError, setSquaresError] = useState(false);
+  const [commits, setCommits] = useState(null);
+  const [commitsError, setCommitsError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch(`https://github-contributions-api.jogruber.de/v4/${CONFIG.githubUsername}?y=last`)
+      .then((r) => { if (!r.ok) throw new Error("bad response"); return r.json(); })
+      .then((data) => { if (!cancelled) setSquares(data); })
+      .catch(() => { if (!cancelled) setSquaresError(true); });
+
+    async function loadCommits() {
+      try {
+        const eventsRes = await fetch(
+          `https://api.github.com/users/${CONFIG.githubUsername}/events/public?per_page=100`
+        );
+        if (!eventsRes.ok) throw new Error("bad response");
+        const events = await eventsRes.json();
+
+        const rawCommits = [];
+        events
+          .filter((e) => e.type === "PushEvent")
+          .forEach((e) => {
+            (e.payload?.commits || []).forEach((c) => {
+              rawCommits.push({
+                sha: c.sha,
+                message: (c.message || "(no commit message)").split("\n")[0],
+                repo: e.repo?.name?.split("/")[1] || e.repo?.name || "unknown",
+                fullRepo: e.repo?.name,
+                date: e.created_at,
+                url: e.repo?.name ? `https://github.com/${e.repo.name}/commit/${c.sha}` : CONFIG.social.github,
+              });
+            });
+          });
+
+        const seen = new Set();
+        const deduped = rawCommits
+          .filter((c) => (seen.has(c.sha) ? false : (seen.add(c.sha), true)))
+          .slice(0, 150);
+
+        // Resolve language per unique repo, best-effort — a handful of extra
+        // calls at most, so unauthenticated rate limits stay comfortable.
+        const uniqueRepos = [...new Set(deduped.map((c) => c.fullRepo))].filter(Boolean).slice(0, 10);
+        const langPairs = await Promise.all(
+          uniqueRepos.map((full) =>
+            fetch(`https://api.github.com/repos/${full}`)
+              .then((r) => (r.ok ? r.json() : null))
+              .then((j) => [full, j?.language || null])
+              .catch(() => [full, null])
+          )
+        );
+        const langMap = Object.fromEntries(langPairs);
+        const withLang = deduped.map((c) => ({ ...c, language: langMap[c.fullRepo] || "Other" }));
+
+        if (!cancelled) setCommits(withLang);
+      } catch (e) {
+        if (!cancelled) setCommitsError(true);
+      }
+    }
+    loadCommits();
+
+    return () => { cancelled = true; };
+  }, []);
+
+  return { squares, squaresError, commits, commitsError };
+}
+
+function ContributionSquares({ data }) {
+  if (!data || !data.contributions) return null;
+
+  const weeks = [];
+  let currentWeek = [];
+  data.contributions.forEach((day) => {
+    currentWeek.push(day);
+    if (currentWeek.length === 7) {
+      weeks.push(currentWeek);
+      currentWeek = [];
+    }
+  });
+  if (currentWeek.length) weeks.push(currentWeek);
+
+  const total = data.contributions.reduce((s, d) => s + (d.count || 0), 0);
+
+  const levelColor = (level) =>
+    [
+      "rgba(255,255,255,0.05)",
+      "rgba(168,85,247,0.28)",
+      "rgba(168,85,247,0.52)",
+      "rgba(168,85,247,0.78)",
+      "#a855f7",
+    ][level] || "rgba(255,255,255,0.05)";
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 3, overflowX: "auto", paddingBottom: 8 }}>
+        {weeks.map((week, wi) => (
+          <div key={wi} style={{ display: "flex", flexDirection: "column", gap: 3, flexShrink: 0 }}>
+            {week.map((day) => (
+              <div
+                key={day.date}
+                title={`${day.count} contribution${day.count === 1 ? "" : "s"} on ${day.date}`}
+                style={{ width: 10, height: 10, borderRadius: 2, background: levelColor(day.level) }}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "#8b8ba0" }}>
+        {total} contributions in the last year
+      </div>
+    </div>
+  );
+}
+
+// Even distribution of N points on a sphere — same technique used for
+// planetary sampling and tag-cloud globes.
+function fibonacciSpherePoints(n, radius) {
+  const points = [];
+  if (n <= 0) return points;
+  const offset = 2 / n;
+  const increment = Math.PI * (3 - Math.sqrt(5)); // golden angle
+  for (let i = 0; i < n; i++) {
+    const y = i * offset - 1 + offset / 2;
+    const r = Math.sqrt(Math.max(0, 1 - y * y));
+    const phi = i * increment;
+    points.push({ x: Math.cos(phi) * r * radius, y: y * radius, z: Math.sin(phi) * r * radius });
+  }
+  return points;
+}
+
+function CommitGalaxy({ commits }) {
+  const [selected, setSelected] = useState(null);
+  const [paused, setPaused] = useState(false);
+  const isMobile = useIsMobile();
+  const reducedMotion = useReducedMotion();
+
+  const radius = isMobile ? 100 : 150;
+  const points = useMemo(() => fibonacciSpherePoints(commits.length, radius), [commits.length, radius]);
+
+  return (
+    <div>
+      <style>{`
+        @keyframes galaxySpin {
+          from { transform: rotateX(18deg) rotateY(0deg); }
+          to   { transform: rotateX(18deg) rotateY(360deg); }
+        }
+      `}</style>
+      <div
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(false)}
+        style={{
+          position: "relative", width: "100%", maxWidth: 440,
+          height: isMobile ? 260 : 380, margin: "0 auto", perspective: 1000,
+        }}
+      >
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute", top: "50%", left: "50%",
+            width: radius * 1.2, height: radius * 1.2,
+            transform: "translate(-50%,-50%)", borderRadius: "50%",
+            background: "radial-gradient(circle at 35% 30%, rgba(168,85,247,0.2), rgba(34,211,238,0.06) 55%, transparent 76%)",
+            border: "1px solid rgba(168,85,247,0.16)",
+            boxShadow: "0 0 70px rgba(168,85,247,0.14) inset",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute", inset: 0, transformStyle: "preserve-3d",
+            animation: reducedMotion ? "none" : "galaxySpin 34s linear infinite",
+            animationPlayState: paused ? "paused" : "running",
+            transform: reducedMotion ? "rotateX(18deg) rotateY(0deg)" : undefined,
+          }}
+        >
+          {commits.map((commit, i) => {
+            const p = points[i];
+            if (!p) return null;
+            const color = LANG_COLORS[commit.language] || LANG_COLORS.default;
+            const isSel = selected?.sha === commit.sha;
+            const size = isSel ? 15 : 8;
+            return (
+              <button
+                key={commit.sha}
+                onClick={() => setSelected(commit)}
+                aria-label={`Commit to ${commit.repo}: ${commit.message}`}
+                title={`${commit.repo} — ${commit.message}`}
+                style={{
+                  position: "absolute", top: "50%", left: "50%",
+                  width: size, height: size, borderRadius: "50%",
+                  border: isSel ? "2px solid #fff" : "none", padding: 0, cursor: "pointer",
+                  background: color,
+                  boxShadow: `0 0 8px ${color}, 0 0 18px ${color}88`,
+                  transform: `translate3d(${p.x}px, ${p.y}px, ${p.z}px) translate(-50%,-50%)`,
+                  transition: "width 0.15s, height 0.15s",
+                }}
+              />
+            );
+          })}
+        </div>
+      </div>
+
+      <div style={{ textAlign: "center", marginTop: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#5a5a6e" }}>
+        hover to pause the orbit · click a commit to inspect it
+      </div>
+
+      {selected && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Commit details"
+          onClick={() => setSelected(null)}
+          style={{
+            position: "fixed", inset: 0, zIndex: 200, display: "flex",
+            alignItems: "center", justifyContent: "center", padding: 20,
+            background: "rgba(7,7,12,0.72)", backdropFilter: "blur(4px)",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "min(420px, 100%)", borderRadius: 14, padding: 24,
+              background: "#0c0c14", border: "1px solid rgba(168,85,247,0.35)",
+              boxShadow: "0 0 40px rgba(168,85,247,0.2)",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "#a855f7", letterSpacing: 2 }}>
+                COMMIT
+              </span>
+              <button
+                onClick={() => setSelected(null)}
+                aria-label="Close"
+                style={{ background: "none", border: "none", cursor: "pointer", color: "#8b8ba0", padding: 0, lineHeight: 0 }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <p style={{ color: "#e4e4f0", fontSize: 15, lineHeight: 1.6, margin: "0 0 18px", fontFamily: "'Space Grotesk', sans-serif" }}>
+              {selected.message}
+            </p>
+            <div style={{ display: "grid", gap: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ color: "#5a5a6e" }}>repository</span>
+                <span style={{ color: "#e4e4f0" }}>{selected.repo}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ color: "#5a5a6e" }}>language</span>
+                <span style={{ display: "flex", alignItems: "center", gap: 6, color: "#e4e4f0" }}>
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: LANG_COLORS[selected.language] || LANG_COLORS.default }} />
+                  {selected.language}
+                </span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ color: "#5a5a6e" }}>date</span>
+                <span style={{ color: "#e4e4f0" }}>
+                  {new Date(selected.date).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}
+                </span>
+              </div>
+            </div>
+            <a
+              href={selected.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6, marginTop: 20,
+                fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "#22d3ee",
+                textDecoration: "none", border: "1px solid rgba(34,211,238,0.3)",
+                padding: "8px 14px", borderRadius: 8,
+              }}
+            >
+              view on GitHub <ArrowUpRight size={13} />
+            </a>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GithubGalaxySection() {
+  const { squares, squaresError, commits, commitsError } = useGithubActivity();
+  const errorBoxStyle = {
+    fontFamily: "'JetBrains Mono', monospace", color: "#f87171", fontSize: 13,
+    padding: 16, border: "1px solid rgba(248,113,113,0.3)", borderRadius: 8,
+    background: "rgba(248,113,113,0.06)",
+  };
+  const loadingTextStyle = { fontFamily: "'JetBrains Mono', monospace", color: "#a855f7", fontSize: 13 };
+
+  return (
+    <Section id="commit-galaxy" label="07 / commit galaxy">
+      <h2 style={{ fontSize: "clamp(28px,4vw,40px)", color: "#e4e4f0", margin: "0 0 12px", fontFamily: "'Space Grotesk', sans-serif" }}>
+        GitHub Contribution Galaxy
+      </h2>
+      <p style={{ color: "#9c9cb0", fontSize: 14, lineHeight: 1.7, margin: "0 0 36px", maxWidth: 640 }}>
+        The classic squares, plus the same activity floating in 3D — every dot in the galaxy below is a real commit. Click one for the repository, message, language, and date.
+      </p>
+
+      <div style={{ marginBottom: 48 }}>
+        {squaresError && <div style={errorBoxStyle}>&gt; contribution graph unreachable — try again later.</div>}
+        {!squaresError && !squares && (
+          <div style={loadingTextStyle}>&gt; loading contribution graph<span style={{ animation: "blink 1s step-end infinite" }}>_</span></div>
+        )}
+        {squares && <ContributionSquares data={squares} />}
+      </div>
+
+      <div>
+        {commitsError && <div style={errorBoxStyle}>&gt; commit uplink failed — GitHub API unreachable or rate-limited.</div>}
+        {!commitsError && !commits && (
+          <div style={loadingTextStyle}>&gt; charting commits in orbit<span style={{ animation: "blink 1s step-end infinite" }}>_</span></div>
+        )}
+        {commits && commits.length > 0 && <CommitGalaxy commits={commits} />}
+        {commits && commits.length === 0 && <div style={loadingTextStyle}>&gt; no recent public commit activity found.</div>}
+      </div>
+    </Section>
+  );
+}
+
+/* =========================================================================
    Skills radar
    ========================================================================= */
 function SkillsSection() {
@@ -2203,7 +2532,7 @@ function CertificationsSection() {
 function ResumeSection() {
   const { unlock } = useAchievements();
   return (
-    <Section id="resume" label="07 / dossier">
+    <Section id="resume" label="08 / dossier">
       <div style={{
         border: "1px solid rgba(168,85,247,0.25)", borderRadius: 14, padding: "40px",
         background: "rgba(255,255,255,0.02)", display: "flex", justifyContent: "space-between",
@@ -2970,6 +3299,7 @@ function Nav() {
     ["home", "home"], ["about", "about"], ["skills", "skills"],
     ["experience", "experience"], ["education", "education"],
     ["certifications", "certifications"], ["projects", "projects"],
+    ["galaxy", "commit-galaxy"],
     ["resume", "resume"], ["contact", "contact"],
   ];
   return (
@@ -3099,6 +3429,7 @@ export default function Portfolio() {
       <EducationSection />
       <CertificationsSection />
       <ProjectsSection />
+      <GithubGalaxySection />
       <ResumeSection />
       <PlaygroundCTA />
       <ContactSection />
