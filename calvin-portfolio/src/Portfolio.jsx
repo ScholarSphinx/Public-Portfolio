@@ -311,6 +311,31 @@ const ACHIEVEMENTS = [
     title: "Beat snake score of 15",
     description: "Scored 15+ in terminal snake.",
   },
+  {
+    id: "explored-galaxy",
+    title: "Explored the commit galaxy",
+    description: "Scrolled the GitHub commits into view in 3D.",
+  },
+  {
+    id: "social-butterfly",
+    title: "Social butterfly",
+    description: "Clicked through to a social link.",
+  },
+  {
+    id: "night-owl",
+    title: "Night owl",
+    description: "Visited the site between midnight and 5am.",
+  },
+  {
+    id: "reached-the-bottom",
+    title: "Reached the bottom",
+    description: "Scrolled all the way down to the contact section.",
+  },
+  {
+    id: "achievement-hunter",
+    title: "Achievement hunter",
+    description: "Opened the achievements case.",
+  },
 ];
 
 const ACHIEVEMENTS_STORAGE_KEY = "portfolio:achievements:v1";
@@ -441,6 +466,180 @@ function AchievementToast({ achievement, onDone }) {
           fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#9c9cb0", lineHeight: 1.4,
         }}>
           {achievement.description}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------
+   Trophy button (fixed, bottom-left) + achievements case panel — lets
+   visitors check their progress and see what's still locked, "Steam-style".
+   ------------------------------------------------------------------------- */
+// "Night owl" — unlocks if the site is loaded between midnight and 5am,
+// local time. Rendered once, inside the provider, purely for its effect.
+function NightOwlCheck() {
+  const { unlock } = useAchievements();
+  useEffect(() => {
+    const hour = new Date().getHours();
+    if (hour >= 0 && hour < 5) unlock("night-owl");
+  }, [unlock]);
+  return null;
+}
+
+function TrophyButton() {
+  const { unlocked, unlock, total } = useAchievements();
+  const [open, setOpen] = useState(false);
+  const count = Object.keys(unlocked).length;
+
+  const handleOpen = useCallback(() => {
+    setOpen(true);
+    unlock("achievement-hunter");
+  }, [unlock]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  return (
+    <>
+      <button
+        onClick={handleOpen}
+        aria-label={`View achievements (${count} of ${total} unlocked)`}
+        title="Achievements"
+        style={{
+          position: "fixed", left: 20, bottom: 20, zIndex: 90,
+          display: "flex", alignItems: "center", gap: 8,
+          padding: "10px 14px", borderRadius: 999, cursor: "pointer",
+          background: "rgba(11,11,20,0.85)", backdropFilter: "blur(8px)",
+          border: "1px solid rgba(251,191,36,0.4)",
+          boxShadow: "0 0 18px rgba(251,191,36,0.14), 0 6px 20px rgba(0,0,0,0.4)",
+          color: "#fbbf24", fontFamily: "'JetBrains Mono', monospace",
+        }}
+      >
+        <Trophy size={16} color="#fbbf24" />
+        <span style={{ fontSize: 12, letterSpacing: 0.5 }}>{count}/{total}</span>
+      </button>
+
+      {open && <AchievementsPanel unlocked={unlocked} onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
+function AchievementsPanel({ unlocked, onClose }) {
+  const count = Object.keys(unlocked).length;
+  const pct = ACHIEVEMENTS.length ? (count / ACHIEVEMENTS.length) * 100 : 0;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Achievements"
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, zIndex: 210,
+        display: "flex", alignItems: "flex-end", justifyContent: "flex-start",
+        padding: 20, background: "rgba(4,4,8,0.55)", backdropFilter: "blur(3px)",
+      }}
+    >
+      <style>{`
+        @keyframes achievementsPanelIn {
+          0% { transform: translateY(16px) scale(0.98); opacity: 0; }
+          100% { transform: translateY(0) scale(1); opacity: 1; }
+        }
+      `}</style>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "min(380px, calc(100vw - 40px))", maxHeight: "min(560px, calc(100vh - 40px))",
+          display: "flex", flexDirection: "column",
+          background: "linear-gradient(160deg, rgba(22,22,34,0.98), rgba(9,9,16,0.98))",
+          border: "1px solid rgba(251,191,36,0.3)", borderRadius: 14,
+          boxShadow: "0 0 30px rgba(251,191,36,0.12), 0 20px 50px rgba(0,0,0,0.6)",
+          animation: "achievementsPanelIn 0.22s ease forwards",
+        }}
+      >
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "16px 18px", borderBottom: "1px solid rgba(255,255,255,0.08)",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <Trophy size={18} color="#fbbf24" />
+            <div>
+              <div style={{
+                fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: "#e4e4f0",
+              }}>
+                Achievements
+              </div>
+              <div style={{
+                fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#9c9cb0", marginTop: 1,
+              }}>
+                {count} / {ACHIEVEMENTS.length} unlocked
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Close achievements"
+            style={{
+              background: "none", border: "none", cursor: "pointer", color: "#9c9cb0",
+              display: "flex", padding: 4,
+            }}
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div style={{ padding: "12px 18px" }}>
+          <div style={{ height: 6, borderRadius: 3, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
+            <div style={{
+              width: `${pct}%`, height: "100%",
+              background: "linear-gradient(90deg, #a855f7, #fbbf24)",
+              boxShadow: "0 0 8px rgba(251,191,36,0.5)", transition: "width 0.3s ease",
+            }} />
+          </div>
+        </div>
+
+        <div style={{ overflowY: "auto", padding: "4px 12px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+          {ACHIEVEMENTS.map((a) => {
+            const isUnlocked = Boolean(unlocked[a.id]);
+            return (
+              <div key={a.id} style={{
+                display: "flex", alignItems: "center", gap: 12,
+                padding: "10px 10px", borderRadius: 10,
+                background: isUnlocked ? "rgba(251,191,36,0.06)" : "rgba(255,255,255,0.02)",
+                border: `1px solid ${isUnlocked ? "rgba(251,191,36,0.3)" : "rgba(255,255,255,0.06)"}`,
+              }}>
+                <div style={{
+                  flexShrink: 0, width: 34, height: 34, borderRadius: 8,
+                  background: isUnlocked ? "rgba(251,191,36,0.12)" : "rgba(255,255,255,0.03)",
+                  border: `1px solid ${isUnlocked ? "rgba(251,191,36,0.4)" : "rgba(255,255,255,0.08)"}`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  {isUnlocked
+                    ? <Trophy size={15} color="#fbbf24" />
+                    : <Lock size={14} color="#5a5a6e" />}
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{
+                    fontFamily: "'Space Grotesk', sans-serif", fontSize: 12.5, fontWeight: 600,
+                    color: isUnlocked ? "#e4e4f0" : "#7a7a90",
+                  }}>
+                    {a.title}
+                  </div>
+                  <div style={{
+                    fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5,
+                    color: isUnlocked ? "#9c9cb0" : "#5a5a6e", lineHeight: 1.4, marginTop: 1,
+                  }}>
+                    {a.description}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -1963,6 +2162,25 @@ function CommitGalaxy({ commits }) {
 
 function GithubGalaxySection() {
   const { squares, squaresError, commits, commitsError } = useGithubActivity();
+  const { unlock } = useAchievements();
+
+  // "Explored the commit galaxy" — unlocks once the section has scrolled
+  // far enough into view that the visitor is actually looking at it.
+  useEffect(() => {
+    const el = document.getElementById("commit-galaxy");
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) unlock("explored-galaxy");
+        });
+      },
+      { threshold: 0.4 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [unlock]);
+
   const errorBoxStyle = {
     fontFamily: "'JetBrains Mono', monospace", color: "#f87171", fontSize: 13,
     padding: 16, border: "1px solid rgba(248,113,113,0.3)", borderRadius: 8,
@@ -2645,6 +2863,24 @@ function CrossedSwordsIcon({ size = 16 }) {
 
 function ContactSection() {
   const { unlock } = useAchievements();
+
+  // "Reached the bottom" — unlocks once the contact section (the last one
+  // on the page) actually scrolls into view.
+  useEffect(() => {
+    const el = document.getElementById("contact");
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) unlock("reached-the-bottom");
+        });
+      },
+      { threshold: 0.3 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [unlock]);
+
   return (
     <Section id="contact" label="09 / connect" style={{ paddingBottom: 60 }}>
       <div style={{ textAlign: "center" }}>
@@ -2656,9 +2892,9 @@ function ContactSection() {
         </p>
         <div style={{ display: "flex", justifyContent: "center", gap: 16, flexWrap: "wrap" }}>
           <EmailLink style={socialBtn}><Mail size={16} /> email</EmailLink>
-          <a href={CONFIG.social.github} target="_blank" rel="noopener noreferrer" style={socialBtn}><Github size={16} /> github</a>
-          <a href={CONFIG.social.linkedin} target="_blank" rel="noopener noreferrer" style={socialBtn}><Linkedin size={16} /> linkedin</a>
-          <a href={CONFIG.social.clashOfClans} target="_blank" rel="noopener noreferrer" style={socialBtn}><CrossedSwordsIcon size={16} /> clash of clans</a>
+          <a href={CONFIG.social.github} target="_blank" rel="noopener noreferrer" style={socialBtn} onClick={() => unlock("social-butterfly")}><Github size={16} /> github</a>
+          <a href={CONFIG.social.linkedin} target="_blank" rel="noopener noreferrer" style={socialBtn} onClick={() => unlock("social-butterfly")}><Linkedin size={16} /> linkedin</a>
+          <a href={CONFIG.social.clashOfClans} target="_blank" rel="noopener noreferrer" style={socialBtn} onClick={() => unlock("social-butterfly")}><CrossedSwordsIcon size={16} /> clash of clans</a>
         </div>
         <p style={{ marginTop: 60, fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "#5a5a6e" }}>
           press "/" to open the terminal · {CONFIG.location}
@@ -3435,6 +3671,8 @@ export default function Portfolio() {
       <ContactSection />
 
       <CommandTerminal open={termOpen} setOpen={setTermOpen} onNavigate={navigate} onDrive={handleDrive} />
+      <NightOwlCheck />
+      <TrophyButton />
     </div>
     </AchievementsProvider>
   );
