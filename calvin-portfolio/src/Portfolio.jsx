@@ -281,9 +281,12 @@ function clamp(value, min, max) {
 
 /* =========================================================================
    Achievements — a little "Steam-style" pop-up system. Progress is persisted
-   to localStorage so unlocks survive a refresh. Any component can call
-   `unlock(id)` via the `useAchievements` hook; it's idempotent, so it's safe
-   to call repeatedly (e.g. on every terminal keystroke).
+   to sessionStorage so unlocks survive a refresh within the same browser
+   session, but reset once the tab/browser is closed — so the next visitor
+   on the same device (e.g. a shared laptop) starts from zero instead of
+   inheriting a previous person's unlocks. Any component can call `unlock(id)`
+   via the `useAchievements` hook; it's idempotent, so it's safe to call
+   repeatedly (e.g. on every terminal keystroke).
    ========================================================================= */
 const ACHIEVEMENTS = [
   {
@@ -343,7 +346,7 @@ const ACHIEVEMENTS_STORAGE_KEY = "portfolio:achievements:v1";
 function loadUnlockedAchievements() {
   if (typeof window === "undefined") return {};
   try {
-    const raw = window.localStorage.getItem(ACHIEVEMENTS_STORAGE_KEY);
+    const raw = window.sessionStorage.getItem(ACHIEVEMENTS_STORAGE_KEY);
     return raw ? JSON.parse(raw) : {};
   } catch {
     return {};
@@ -361,9 +364,9 @@ function AchievementsProvider({ children }) {
       if (prev[id]) return prev;
       const next = { ...prev, [id]: Date.now() };
       try {
-        window.localStorage.setItem(ACHIEVEMENTS_STORAGE_KEY, JSON.stringify(next));
+        window.sessionStorage.setItem(ACHIEVEMENTS_STORAGE_KEY, JSON.stringify(next));
       } catch {
-        /* localStorage unavailable — unlock still applies for this session */
+        /* sessionStorage unavailable — unlock still applies for this session */
       }
       const meta = ACHIEVEMENTS.find((a) => a.id === id);
       if (meta) {
@@ -1995,18 +1998,51 @@ function ContributionSquares({ data }) {
   );
 }
 
-// Even distribution of N points on a sphere — same technique used for
-// planetary sampling and tag-cloud globes.
-function fibonacciSpherePoints(n, radius) {
+// Places N points like a barred-spiral galaxy: a bright, dense core, a
+// handful of curling arms winding outward, and a thin disc (rather than a
+// sphere) so it actually reads as a galaxy once it's spinning. Deterministic
+// (no Math.random) so the layout is stable across re-renders.
+function galaxySpiralPoints(n, radius) {
   const points = [];
   if (n <= 0) return points;
-  const offset = 2 / n;
-  const increment = Math.PI * (3 - Math.sqrt(5)); // golden angle
+  const arms = 3;
+  const windings = 2.1; // how many times an arm winds around before reaching the rim
+  const armScatter = 0.42; // radians of scatter off the arm's centerline
+
+  const pseudoRandom = (seed) => {
+    const x = Math.sin(seed) * 43758.5453123;
+    return x - Math.floor(x); // 0..1
+  };
+
   for (let i = 0; i < n; i++) {
-    const y = i * offset - 1 + offset / 2;
-    const r = Math.sqrt(Math.max(0, 1 - y * y));
-    const phi = i * increment;
-    points.push({ x: Math.cos(phi) * r * radius, y: y * radius, z: Math.sin(phi) * r * radius });
+    // Bias radius toward the core (dense center, sparser rim) like a real
+    // spiral galaxy's brightness profile, instead of an even spread.
+    const t = (i + 0.5) / n; // 0..1, stable per-index "how far out" value
+    const r = radius * Math.pow(t, 0.62);
+
+    const arm = i % arms;
+    const armAngle = (arm / arms) * Math.PI * 2;
+    const windAngle = Math.pow(t, 0.85) * windings * Math.PI * 2;
+
+    const scatterAmount = armScatter * (0.35 + t * 0.9); // arms fray outward
+    const angleJitter = (pseudoRandom(i * 12.9898 + 3.1) - 0.5) * scatterAmount;
+    const radiusJitter = 1 + (pseudoRandom(i * 78.233 + 7.7) - 0.5) * 0.22;
+
+    const angle = armAngle + windAngle + angleJitter;
+    const rr = r * radiusJitter;
+
+    // Thin disc: most scatter is in-plane, with a small vertical spread that
+    // tapers toward the rim (galaxies are thicker at the bulge, thinner out
+    // in the arms).
+    const discThickness = radius * (0.16 * (1 - t * 0.75) + 0.02);
+    const heightJitter = (pseudoRandom(i * 39.19 + 1.3) - 0.5) * 2;
+
+    points.push({
+      x: Math.cos(angle) * rr,
+      z: Math.sin(angle) * rr,
+      y: heightJitter * discThickness,
+      t, // 0 (core) .. 1 (rim) — used to fade/scale points outward
+    });
   }
   return points;
 }
@@ -2018,14 +2054,19 @@ function CommitGalaxy({ commits }) {
   const reducedMotion = useReducedMotion();
 
   const radius = isMobile ? 100 : 150;
-  const points = useMemo(() => fibonacciSpherePoints(commits.length, radius), [commits.length, radius]);
+  const points = useMemo(() => galaxySpiralPoints(commits.length, radius), [commits.length, radius]);
+  // Viewed from a steep angle (rather than near side-on) so the spiral arms
+  // and core are actually visible, like a top-down galaxy photo tilted for
+  // depth. cos(TILT_DEG) is reused below to squash the static core glow into
+  // the same flattened-disc ellipse the points trace out.
+  const TILT_DEG = 62;
 
   return (
     <div>
       <style>{`
         @keyframes galaxySpin {
-          from { transform: rotateX(18deg) rotateY(0deg); }
-          to   { transform: rotateX(18deg) rotateY(360deg); }
+          from { transform: rotateX(${TILT_DEG}deg) rotateY(0deg); }
+          to   { transform: rotateX(${TILT_DEG}deg) rotateY(360deg); }
         }
       `}</style>
       <div
@@ -2040,11 +2081,11 @@ function CommitGalaxy({ commits }) {
           aria-hidden="true"
           style={{
             position: "absolute", top: "50%", left: "50%",
-            width: radius * 1.2, height: radius * 1.2,
-            transform: "translate(-50%,-50%)", borderRadius: "50%",
-            background: "radial-gradient(circle at 35% 30%, rgba(168,85,247,0.2), rgba(34,211,238,0.06) 55%, transparent 76%)",
-            border: "1px solid rgba(168,85,247,0.16)",
-            boxShadow: "0 0 70px rgba(168,85,247,0.14) inset",
+            width: radius * 2.1, height: radius * 2.1,
+            transform: `translate(-50%,-50%) scaleY(${Math.cos((TILT_DEG * Math.PI) / 180).toFixed(3)})`,
+            borderRadius: "50%",
+            background: "radial-gradient(circle at 50% 50%, rgba(255,255,255,0.5), rgba(168,85,247,0.4) 12%, rgba(168,85,247,0.14) 32%, rgba(34,211,238,0.05) 58%, transparent 76%)",
+            boxShadow: "0 0 90px rgba(168,85,247,0.16)",
           }}
         />
         <div
@@ -2052,7 +2093,7 @@ function CommitGalaxy({ commits }) {
             position: "absolute", inset: 0, transformStyle: "preserve-3d",
             animation: reducedMotion ? "none" : "galaxySpin 34s linear infinite",
             animationPlayState: paused ? "paused" : "running",
-            transform: reducedMotion ? "rotateX(18deg) rotateY(0deg)" : undefined,
+            transform: reducedMotion ? `rotateX(${TILT_DEG}deg) rotateY(0deg)` : undefined,
           }}
         >
           {commits.map((commit, i) => {
@@ -2060,7 +2101,11 @@ function CommitGalaxy({ commits }) {
             if (!p) return null;
             const color = LANG_COLORS[commit.language] || LANG_COLORS.default;
             const isSel = selected?.sha === commit.sha;
-            const size = isSel ? 15 : 8;
+            // Brighter and slightly larger near the core, dimmer and smaller
+            // out toward the rim — mimics a galaxy's actual brightness falloff.
+            const core = 1 - p.t;
+            const size = isSel ? 15 : 5 + core * 5;
+            const glowOpacity = isSel ? 1 : 0.55 + core * 0.45;
             return (
               <button
                 key={commit.sha}
@@ -2072,7 +2117,8 @@ function CommitGalaxy({ commits }) {
                   width: size, height: size, borderRadius: "50%",
                   border: isSel ? "2px solid #fff" : "none", padding: 0, cursor: "pointer",
                   background: color,
-                  boxShadow: `0 0 8px ${color}, 0 0 18px ${color}88`,
+                  opacity: glowOpacity,
+                  boxShadow: `0 0 ${5 + core * 6}px ${color}, 0 0 ${12 + core * 14}px ${color}88`,
                   transform: `translate3d(${p.x}px, ${p.y}px, ${p.z}px) translate(-50%,-50%)`,
                   transition: "width 0.15s, height 0.15s",
                 }}
