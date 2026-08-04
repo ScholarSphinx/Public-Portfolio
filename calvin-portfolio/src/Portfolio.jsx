@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useContext, createContext } from "react";
 import {
   Github, Linkedin, Mail, Terminal, ExternalLink, Star, GitFork,
-  Download, ChevronRight, X, Cpu, Lock, Radio, ArrowUpRight, Instagram, Binary, User, Car, Award
+  Download, ChevronRight, X, Cpu, Lock, Radio, ArrowUpRight, Instagram, Binary, User, Car, Award, Trophy
 } from "lucide-react";
 import {
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
@@ -279,6 +279,174 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
+/* =========================================================================
+   Achievements — a little "Steam-style" pop-up system. Progress is persisted
+   to localStorage so unlocks survive a refresh. Any component can call
+   `unlock(id)` via the `useAchievements` hook; it's idempotent, so it's safe
+   to call repeatedly (e.g. on every terminal keystroke).
+   ========================================================================= */
+const ACHIEVEMENTS = [
+  {
+    id: "opened-terminal",
+    title: "Opened terminal",
+    description: "Popped open the command terminal.",
+  },
+  {
+    id: "viewed-every-project",
+    title: "Viewed every project",
+    description: "Scrolled past every pinned repository.",
+  },
+  {
+    id: "found-hidden-command",
+    title: "Found hidden command",
+    description: "Ran a command that isn't in `help`.",
+  },
+  {
+    id: "downloaded-resume",
+    title: "Downloaded resume",
+    description: "Grabbed the PDF dossier.",
+  },
+  {
+    id: "beat-snake-15",
+    title: "Beat snake score of 15",
+    description: "Scored 15+ in terminal snake.",
+  },
+];
+
+const ACHIEVEMENTS_STORAGE_KEY = "portfolio:achievements:v1";
+
+function loadUnlockedAchievements() {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(ACHIEVEMENTS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+const AchievementsContext = createContext(null);
+
+function AchievementsProvider({ children }) {
+  const [unlocked, setUnlocked] = useState(loadUnlockedAchievements);
+  const [toasts, setToasts] = useState([]);
+
+  const unlock = useCallback((id) => {
+    setUnlocked((prev) => {
+      if (prev[id]) return prev;
+      const next = { ...prev, [id]: Date.now() };
+      try {
+        window.localStorage.setItem(ACHIEVEMENTS_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        /* localStorage unavailable — unlock still applies for this session */
+      }
+      const meta = ACHIEVEMENTS.find((a) => a.id === id);
+      if (meta) {
+        setToasts((q) => [...q, { ...meta, key: `${id}-${Date.now()}` }]);
+      }
+      return next;
+    });
+  }, []);
+
+  const dismissToast = useCallback((key) => {
+    setToasts((q) => q.filter((t) => t.key !== key));
+  }, []);
+
+  const value = { unlocked, unlock, total: ACHIEVEMENTS.length };
+
+  return (
+    <AchievementsContext.Provider value={value}>
+      {children}
+      <AchievementToastStack toasts={toasts} onDismiss={dismissToast} />
+    </AchievementsContext.Provider>
+  );
+}
+
+function useAchievements() {
+  const ctx = useContext(AchievementsContext);
+  if (!ctx) throw new Error("useAchievements must be used inside AchievementsProvider");
+  return ctx;
+}
+
+function AchievementToastStack({ toasts, onDismiss }) {
+  if (toasts.length === 0) return null;
+  return (
+    <div
+      aria-live="polite"
+      style={{
+        position: "fixed", top: 20, right: 20, zIndex: 200,
+        display: "flex", flexDirection: "column", gap: 10,
+        pointerEvents: "none", width: "min(300px, calc(100vw - 40px))",
+      }}
+    >
+      <style>{`
+        @keyframes achievementIn {
+          0% { transform: translateX(60px); opacity: 0; }
+          100% { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes achievementOut {
+          0% { transform: translateX(0); opacity: 1; }
+          100% { transform: translateX(60px); opacity: 0; }
+        }
+      `}</style>
+      {toasts.map((t) => (
+        <AchievementToast key={t.key} achievement={t} onDone={() => onDismiss(t.key)} />
+      ))}
+    </div>
+  );
+}
+
+function AchievementToast({ achievement, onDone }) {
+  const [leaving, setLeaving] = useState(false);
+  useEffect(() => {
+    const t1 = setTimeout(() => setLeaving(true), 4000);
+    const t2 = setTimeout(onDone, 4400);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [onDone]);
+
+  return (
+    <div
+      role="status"
+      style={{
+        display: "flex", alignItems: "center", gap: 12,
+        padding: "12px 14px", borderRadius: 10,
+        background: "linear-gradient(135deg, rgba(22,22,34,0.97), rgba(10,10,18,0.97))",
+        border: "1px solid rgba(251,191,36,0.45)",
+        boxShadow: "0 0 22px rgba(251,191,36,0.18), 0 10px 26px rgba(0,0,0,0.5)",
+        animation: `${leaving ? "achievementOut" : "achievementIn"} 0.35s ease forwards`,
+        pointerEvents: "auto",
+      }}
+    >
+      <div style={{
+        flexShrink: 0, width: 38, height: 38, borderRadius: 8,
+        background: "rgba(251,191,36,0.12)", border: "1px solid rgba(251,191,36,0.4)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        <Trophy size={18} color="#fbbf24" />
+      </div>
+      <div style={{ minWidth: 0 }}>
+        <div style={{
+          fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: 1,
+          textTransform: "uppercase", color: "#fbbf24", marginBottom: 3,
+        }}>
+          Achievement Unlocked
+        </div>
+        <div style={{
+          fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 600,
+          color: "#e4e4f0", marginBottom: 2,
+        }}>
+          🏆 {achievement.title}
+        </div>
+        <div style={{
+          fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#9c9cb0", lineHeight: 1.4,
+        }}>
+          {achievement.description}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Only real mice/trackpads get the custom cursor — touch devices have no
 // cursor to replace, and narrow-but-desktop windows should still get it, so
 // this checks pointer capability rather than viewport width.
@@ -512,6 +680,7 @@ function SnakeGame({ onExit }) {
   const [score, setScore] = useState(0);
   const [best, setBest] = useState(0);
   const [gameOver, setGameOver] = useState(false);
+  const { unlock } = useAchievements();
 
   const randomFood = (occupied) => {
     let pos;
@@ -580,6 +749,7 @@ function SnakeGame({ onExit }) {
         setScore((sc) => {
           const nextScore = sc + 1;
           setBest((b) => Math.max(b, nextScore));
+          if (nextScore >= 15) unlock("beat-snake-15");
           return nextScore;
         });
         s.food = randomFood(s.snake);
@@ -667,6 +837,7 @@ function CommandTerminal({ open, setOpen, onNavigate, onDrive }) {
   const [game, setGame] = useState(null); // null | "snake"
   const inputRef = useRef(null);
   const canvasRef = useRef(null);
+  const { unlock } = useAchievements();
 
   const closeTerminal = () => {
     setOpen(false);
@@ -675,7 +846,8 @@ function CommandTerminal({ open, setOpen, onNavigate, onDrive }) {
 
   useEffect(() => {
     if (open && inputRef.current) inputRef.current.focus();
-  }, [open]);
+    if (open) unlock("opened-terminal");
+  }, [open, unlock]);
 
   // "matrix" command — brief rain-of-code overlay drawn on a canvas layered
   // over the terminal's history pane, auto-dismissing after ~2.2s.
@@ -754,6 +926,9 @@ function CommandTerminal({ open, setOpen, onNavigate, onDrive }) {
       onDrive();
     } else if (cmd === "sudo hire calvin") {
       out = "permission granted. initiating outreach protocol — check the contact section.";
+    } else if (cmd === "iddqd") {
+      out = "god mode enabled. (you found a hidden command — nice.)";
+      unlock("found-hidden-command");
     } else if (cmd === "ls") {
       out = "home  about  skills  experience  education  projects  resume  contact";
     } else if (cmd === "clear") {
@@ -1341,6 +1516,31 @@ function ProjectsSection() {
   const [repos, setRepos] = useState(null);
   const [profile, setProfile] = useState(null);
   const [error, setError] = useState(false);
+  const { unlock } = useAchievements();
+  const cardRefs = useRef({});
+  const viewedIds = useRef(new Set());
+
+  // "Viewed every project" — an IntersectionObserver watches each repo card
+  // and marks it seen once it scrolls into view; unlocks once every card
+  // currently rendered has been seen at least once.
+  useEffect(() => {
+    if (!repos || repos.length === 0) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            viewedIds.current.add(entry.target.dataset.repoId);
+            if (viewedIds.current.size >= repos.length) {
+              unlock("viewed-every-project");
+            }
+          }
+        });
+      },
+      { threshold: 0.6 }
+    );
+    Object.values(cardRefs.current).forEach((el) => el && observer.observe(el));
+    return () => observer.disconnect();
+  }, [repos, unlock]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1411,6 +1611,8 @@ function ProjectsSection() {
           {repos.map((repo) => (
             <a
               key={repo.id}
+              ref={(el) => { if (el) cardRefs.current[repo.id] = el; }}
+              data-repo-id={repo.id}
               href={repo.html_url}
               target="_blank"
               rel="noopener noreferrer"
@@ -1999,6 +2201,7 @@ function CertificationsSection() {
    Resume section
    ========================================================================= */
 function ResumeSection() {
+  const { unlock } = useAchievements();
   return (
     <Section id="resume" label="07 / dossier">
       <div style={{
@@ -2019,6 +2222,7 @@ function ResumeSection() {
           target="_blank"
           rel="noopener noreferrer"
           download="Calvin_Pillay_Resume.pdf"
+          onClick={() => unlock("downloaded-resume")}
           style={{
             display: "flex", alignItems: "center", gap: 10, padding: "14px 26px",
             borderRadius: 10, background: "#a855f7", color: "#0b0b14", fontWeight: 600,
@@ -2111,6 +2315,7 @@ function CrossedSwordsIcon({ size = 16 }) {
 }
 
 function ContactSection() {
+  const { unlock } = useAchievements();
   return (
     <Section id="contact" label="09 / connect" style={{ paddingBottom: 60 }}>
       <div style={{ textAlign: "center" }}>
@@ -2292,6 +2497,7 @@ function Hero({ scrollY, reducedMotion }) {
             target="_blank"
             rel="noopener noreferrer"
             download="Calvin_Pillay_Resume.pdf"
+            onClick={() => unlock("downloaded-resume")}
             style={{
               display: "flex", alignItems: "center", gap: 8, padding: "14px 26px", borderRadius: 10,
               border: "1px solid rgba(34,211,238,0.4)", color: "#22d3ee", textDecoration: "none",
@@ -2831,6 +3037,7 @@ export default function Portfolio() {
   }, [navigate]);
 
   return (
+    <AchievementsProvider>
     <div style={{ background: "#07070c", minHeight: "100vh", position: "relative" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
@@ -2898,5 +3105,6 @@ export default function Portfolio() {
 
       <CommandTerminal open={termOpen} setOpen={setTermOpen} onNavigate={navigate} onDrive={handleDrive} />
     </div>
+    </AchievementsProvider>
   );
 }
