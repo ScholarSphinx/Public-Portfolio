@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef, useCallback, useContext, createContext, useMemo } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Github, Linkedin, Mail, Terminal, ExternalLink, Star, GitFork,
-  Download, ChevronRight, X, Cpu, Lock, Radio, ArrowUpRight, Instagram, Binary, User, Car, Award, Trophy
+  Download, ChevronRight, X, Cpu, Lock, Radio, ArrowUpRight, Instagram, Binary, User, Car, Award
 } from "lucide-react";
 import {
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
@@ -187,6 +187,17 @@ const CONFIG = {
       ],
     },
   ],
+  // Hackathons — displayed in their own section between Certifications and
+  // Projects, using the same badge-preview entry style. Ordered chronologically.
+  hackathons: [
+    {
+      name: "Entellect Challenge University Cup",
+      issuer: "Entellect Challenge",
+      date: "18 April 2026",
+      description: "Competed in the Entellect Challenge University Cup.",
+      images: [],
+    },
+  ],
   certifications: [
     {
       name: "Youth Leadership Course",
@@ -277,376 +288,6 @@ const LANG_COLORS = {
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
-}
-
-/* =========================================================================
-   Achievements — a little "Steam-style" pop-up system. Progress is persisted
-   to sessionStorage so unlocks survive a refresh within the same browser
-   session, but reset once the tab/browser is closed — so the next visitor
-   on the same device (e.g. a shared laptop) starts from zero instead of
-   inheriting a previous person's unlocks. Any component can call `unlock(id)`
-   via the `useAchievements` hook; it's idempotent, so it's safe to call
-   repeatedly (e.g. on every terminal keystroke).
-   ========================================================================= */
-const ACHIEVEMENTS = [
-  {
-    id: "opened-terminal",
-    title: "Opened terminal",
-    description: "Popped open the command terminal.",
-  },
-  {
-    id: "viewed-every-project",
-    title: "Viewed every project",
-    description: "Scrolled past every pinned repository.",
-  },
-  {
-    id: "found-hidden-command",
-    title: "Found hidden command",
-    description: "Ran a command that isn't in `help`.",
-  },
-  {
-    id: "downloaded-resume",
-    title: "Downloaded resume",
-    description: "Grabbed the PDF dossier.",
-  },
-  {
-    id: "beat-snake-15",
-    title: "Beat snake score of 15",
-    description: "Scored 15+ in terminal snake.",
-  },
-  {
-    id: "explored-galaxy",
-    title: "Explored the commit galaxy",
-    description: "Scrolled the GitHub commits into view in 3D.",
-  },
-  {
-    id: "social-butterfly",
-    title: "Social butterfly",
-    description: "Clicked through to a social link.",
-  },
-  {
-    id: "night-owl",
-    title: "Night owl",
-    description: "Visited the site between midnight and 5am.",
-  },
-  {
-    id: "reached-the-bottom",
-    title: "Reached the bottom",
-    description: "Scrolled all the way down to the contact section.",
-  },
-  {
-    id: "achievement-hunter",
-    title: "Achievement hunter",
-    description: "Opened the achievements case.",
-  },
-];
-
-const ACHIEVEMENTS_STORAGE_KEY = "portfolio:achievements:v1";
-
-function loadUnlockedAchievements() {
-  if (typeof window === "undefined") return {};
-  try {
-    const raw = window.sessionStorage.getItem(ACHIEVEMENTS_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
-
-const AchievementsContext = createContext(null);
-
-function AchievementsProvider({ children }) {
-  const [unlocked, setUnlocked] = useState(loadUnlockedAchievements);
-  const [toasts, setToasts] = useState([]);
-
-  const unlock = useCallback((id) => {
-    setUnlocked((prev) => {
-      if (prev[id]) return prev;
-      const next = { ...prev, [id]: Date.now() };
-      try {
-        window.sessionStorage.setItem(ACHIEVEMENTS_STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        /* sessionStorage unavailable — unlock still applies for this session */
-      }
-      const meta = ACHIEVEMENTS.find((a) => a.id === id);
-      if (meta) {
-        setToasts((q) => [...q, { ...meta, key: `${id}-${Date.now()}` }]);
-      }
-      return next;
-    });
-  }, []);
-
-  const dismissToast = useCallback((key) => {
-    setToasts((q) => q.filter((t) => t.key !== key));
-  }, []);
-
-  const value = { unlocked, unlock, total: ACHIEVEMENTS.length };
-
-  return (
-    <AchievementsContext.Provider value={value}>
-      {children}
-      <AchievementToastStack toasts={toasts} onDismiss={dismissToast} />
-    </AchievementsContext.Provider>
-  );
-}
-
-function useAchievements() {
-  const ctx = useContext(AchievementsContext);
-  if (!ctx) throw new Error("useAchievements must be used inside AchievementsProvider");
-  return ctx;
-}
-
-function AchievementToastStack({ toasts, onDismiss }) {
-  if (toasts.length === 0) return null;
-  return (
-    <div
-      aria-live="polite"
-      style={{
-        position: "fixed", top: 20, right: 20, zIndex: 200,
-        display: "flex", flexDirection: "column", gap: 10,
-        pointerEvents: "none", width: "min(300px, calc(100vw - 40px))",
-      }}
-    >
-      <style>{`
-        @keyframes achievementIn {
-          0% { transform: translateX(60px); opacity: 0; }
-          100% { transform: translateX(0); opacity: 1; }
-        }
-        @keyframes achievementOut {
-          0% { transform: translateX(0); opacity: 1; }
-          100% { transform: translateX(60px); opacity: 0; }
-        }
-      `}</style>
-      {toasts.map((t) => (
-        <AchievementToast key={t.key} achievement={t} onDone={() => onDismiss(t.key)} />
-      ))}
-    </div>
-  );
-}
-
-function AchievementToast({ achievement, onDone }) {
-  const [leaving, setLeaving] = useState(false);
-  useEffect(() => {
-    const t1 = setTimeout(() => setLeaving(true), 4000);
-    const t2 = setTimeout(onDone, 4400);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, [onDone]);
-
-  return (
-    <div
-      role="status"
-      style={{
-        display: "flex", alignItems: "center", gap: 12,
-        padding: "12px 14px", borderRadius: 10,
-        background: "linear-gradient(135deg, rgba(22,22,34,0.97), rgba(10,10,18,0.97))",
-        border: "1px solid rgba(251,191,36,0.45)",
-        boxShadow: "0 0 22px rgba(251,191,36,0.18), 0 10px 26px rgba(0,0,0,0.5)",
-        animation: `${leaving ? "achievementOut" : "achievementIn"} 0.35s ease forwards`,
-        pointerEvents: "auto",
-      }}
-    >
-      <div style={{
-        flexShrink: 0, width: 38, height: 38, borderRadius: 8,
-        background: "rgba(251,191,36,0.12)", border: "1px solid rgba(251,191,36,0.4)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-      }}>
-        <Trophy size={18} color="#fbbf24" />
-      </div>
-      <div style={{ minWidth: 0 }}>
-        <div style={{
-          fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: 1,
-          textTransform: "uppercase", color: "#fbbf24", marginBottom: 3,
-        }}>
-          Achievement Unlocked
-        </div>
-        <div style={{
-          fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 600,
-          color: "#e4e4f0", marginBottom: 2,
-        }}>
-          🏆 {achievement.title}
-        </div>
-        <div style={{
-          fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#9c9cb0", lineHeight: 1.4,
-        }}>
-          {achievement.description}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* -------------------------------------------------------------------------
-   Trophy button (fixed, bottom-left) + achievements case panel — lets
-   visitors check their progress and see what's still locked, "Steam-style".
-   ------------------------------------------------------------------------- */
-// "Night owl" — unlocks if the site is loaded between midnight and 5am,
-// local time. Rendered once, inside the provider, purely for its effect.
-function NightOwlCheck() {
-  const { unlock } = useAchievements();
-  useEffect(() => {
-    const hour = new Date().getHours();
-    if (hour >= 0 && hour < 5) unlock("night-owl");
-  }, [unlock]);
-  return null;
-}
-
-function TrophyButton() {
-  const { unlocked, unlock, total } = useAchievements();
-  const [open, setOpen] = useState(false);
-  const count = Object.keys(unlocked).length;
-
-  const handleOpen = useCallback(() => {
-    setOpen(true);
-    unlock("achievement-hunter");
-  }, [unlock]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
-
-  return (
-    <>
-      <button
-        onClick={handleOpen}
-        aria-label={`View achievements (${count} of ${total} unlocked)`}
-        title="Achievements"
-        style={{
-          position: "fixed", left: 20, bottom: 20, zIndex: 90,
-          display: "flex", alignItems: "center", gap: 8,
-          padding: "10px 14px", borderRadius: 999, cursor: "pointer",
-          background: "rgba(11,11,20,0.85)", backdropFilter: "blur(8px)",
-          border: "1px solid rgba(251,191,36,0.4)",
-          boxShadow: "0 0 18px rgba(251,191,36,0.14), 0 6px 20px rgba(0,0,0,0.4)",
-          color: "#fbbf24", fontFamily: "'JetBrains Mono', monospace",
-        }}
-      >
-        <Trophy size={16} color="#fbbf24" />
-        <span style={{ fontSize: 12, letterSpacing: 0.5 }}>{count}/{total}</span>
-      </button>
-
-      {open && <AchievementsPanel unlocked={unlocked} onClose={() => setOpen(false)} />}
-    </>
-  );
-}
-
-function AchievementsPanel({ unlocked, onClose }) {
-  const count = Object.keys(unlocked).length;
-  const pct = ACHIEVEMENTS.length ? (count / ACHIEVEMENTS.length) * 100 : 0;
-
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Achievements"
-      onClick={onClose}
-      style={{
-        position: "fixed", inset: 0, zIndex: 210,
-        display: "flex", alignItems: "flex-end", justifyContent: "flex-start",
-        padding: 20, background: "rgba(4,4,8,0.55)", backdropFilter: "blur(3px)",
-      }}
-    >
-      <style>{`
-        @keyframes achievementsPanelIn {
-          0% { transform: translateY(16px) scale(0.98); opacity: 0; }
-          100% { transform: translateY(0) scale(1); opacity: 1; }
-        }
-      `}</style>
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: "min(380px, calc(100vw - 40px))", maxHeight: "min(560px, calc(100vh - 40px))",
-          display: "flex", flexDirection: "column",
-          background: "linear-gradient(160deg, rgba(22,22,34,0.98), rgba(9,9,16,0.98))",
-          border: "1px solid rgba(251,191,36,0.3)", borderRadius: 14,
-          boxShadow: "0 0 30px rgba(251,191,36,0.12), 0 20px 50px rgba(0,0,0,0.6)",
-          animation: "achievementsPanelIn 0.22s ease forwards",
-        }}
-      >
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "16px 18px", borderBottom: "1px solid rgba(255,255,255,0.08)",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <Trophy size={18} color="#fbbf24" />
-            <div>
-              <div style={{
-                fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: "#e4e4f0",
-              }}>
-                Achievements
-              </div>
-              <div style={{
-                fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#9c9cb0", marginTop: 1,
-              }}>
-                {count} / {ACHIEVEMENTS.length} unlocked
-              </div>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            aria-label="Close achievements"
-            style={{
-              background: "none", border: "none", cursor: "pointer", color: "#9c9cb0",
-              display: "flex", padding: 4,
-            }}
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        <div style={{ padding: "12px 18px" }}>
-          <div style={{ height: 6, borderRadius: 3, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
-            <div style={{
-              width: `${pct}%`, height: "100%",
-              background: "linear-gradient(90deg, #a855f7, #fbbf24)",
-              boxShadow: "0 0 8px rgba(251,191,36,0.5)", transition: "width 0.3s ease",
-            }} />
-          </div>
-        </div>
-
-        <div style={{ overflowY: "auto", padding: "4px 12px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
-          {ACHIEVEMENTS.map((a) => {
-            const isUnlocked = Boolean(unlocked[a.id]);
-            return (
-              <div key={a.id} style={{
-                display: "flex", alignItems: "center", gap: 12,
-                padding: "10px 10px", borderRadius: 10,
-                background: isUnlocked ? "rgba(251,191,36,0.06)" : "rgba(255,255,255,0.02)",
-                border: `1px solid ${isUnlocked ? "rgba(251,191,36,0.3)" : "rgba(255,255,255,0.06)"}`,
-              }}>
-                <div style={{
-                  flexShrink: 0, width: 34, height: 34, borderRadius: 8,
-                  background: isUnlocked ? "rgba(251,191,36,0.12)" : "rgba(255,255,255,0.03)",
-                  border: `1px solid ${isUnlocked ? "rgba(251,191,36,0.4)" : "rgba(255,255,255,0.08)"}`,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}>
-                  {isUnlocked
-                    ? <Trophy size={15} color="#fbbf24" />
-                    : <Lock size={14} color="#5a5a6e" />}
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{
-                    fontFamily: "'Space Grotesk', sans-serif", fontSize: 12.5, fontWeight: 600,
-                    color: isUnlocked ? "#e4e4f0" : "#7a7a90",
-                  }}>
-                    {a.title}
-                  </div>
-                  <div style={{
-                    fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5,
-                    color: isUnlocked ? "#9c9cb0" : "#5a5a6e", lineHeight: 1.4, marginTop: 1,
-                  }}>
-                    {a.description}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
 }
 
 // Only real mice/trackpads get the custom cursor — touch devices have no
@@ -882,7 +523,6 @@ function SnakeGame({ onExit }) {
   const [score, setScore] = useState(0);
   const [best, setBest] = useState(0);
   const [gameOver, setGameOver] = useState(false);
-  const { unlock } = useAchievements();
 
   const randomFood = (occupied) => {
     let pos;
@@ -951,7 +591,6 @@ function SnakeGame({ onExit }) {
         setScore((sc) => {
           const nextScore = sc + 1;
           setBest((b) => Math.max(b, nextScore));
-          if (nextScore >= 15) unlock("beat-snake-15");
           return nextScore;
         });
         s.food = randomFood(s.snake);
@@ -1039,7 +678,6 @@ function CommandTerminal({ open, setOpen, onNavigate, onDrive }) {
   const [game, setGame] = useState(null); // null | "snake"
   const inputRef = useRef(null);
   const canvasRef = useRef(null);
-  const { unlock } = useAchievements();
 
   const closeTerminal = () => {
     setOpen(false);
@@ -1048,8 +686,7 @@ function CommandTerminal({ open, setOpen, onNavigate, onDrive }) {
 
   useEffect(() => {
     if (open && inputRef.current) inputRef.current.focus();
-    if (open) unlock("opened-terminal");
-  }, [open, unlock]);
+  }, [open]);
 
   // "matrix" command — brief rain-of-code overlay drawn on a canvas layered
   // over the terminal's history pane, auto-dismissing after ~2.2s.
@@ -1128,9 +765,6 @@ function CommandTerminal({ open, setOpen, onNavigate, onDrive }) {
       onDrive();
     } else if (cmd === "sudo hire calvin") {
       out = "permission granted. initiating outreach protocol — check the contact section.";
-    } else if (cmd === "iddqd") {
-      out = "god mode enabled. (you found a hidden command — nice.)";
-      unlock("found-hidden-command");
     } else if (cmd === "ls") {
       out = "home  about  skills  experience  education  projects  resume  contact";
     } else if (cmd === "clear") {
@@ -1718,31 +1352,6 @@ function ProjectsSection() {
   const [repos, setRepos] = useState(null);
   const [profile, setProfile] = useState(null);
   const [error, setError] = useState(false);
-  const { unlock } = useAchievements();
-  const cardRefs = useRef({});
-  const viewedIds = useRef(new Set());
-
-  // "Viewed every project" — an IntersectionObserver watches each repo card
-  // and marks it seen once it scrolls into view; unlocks once every card
-  // currently rendered has been seen at least once.
-  useEffect(() => {
-    if (!repos || repos.length === 0) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            viewedIds.current.add(entry.target.dataset.repoId);
-            if (viewedIds.current.size >= repos.length) {
-              unlock("viewed-every-project");
-            }
-          }
-        });
-      },
-      { threshold: 0.6 }
-    );
-    Object.values(cardRefs.current).forEach((el) => el && observer.observe(el));
-    return () => observer.disconnect();
-  }, [repos, unlock]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1778,7 +1387,7 @@ function ProjectsSection() {
   }, []);
 
   return (
-    <Section id="projects" label="06 / repositories">
+    <Section id="projects" label="07 / repositories">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 40, flexWrap: "wrap", gap: 16 }}>
         <h2 style={{ fontSize: "clamp(28px,4vw,40px)", color: "#e4e4f0", margin: 0, fontFamily: "'Space Grotesk', sans-serif" }}>
           Live from GitHub
@@ -1813,8 +1422,6 @@ function ProjectsSection() {
           {repos.map((repo) => (
             <a
               key={repo.id}
-              ref={(el) => { if (el) cardRefs.current[repo.id] = el; }}
-              data-repo-id={repo.id}
               href={repo.html_url}
               target="_blank"
               rel="noopener noreferrer"
@@ -1867,397 +1474,6 @@ function ProjectsSection() {
         >
           view full repository list <ArrowUpRight size={14} />
         </a>
-      </div>
-    </Section>
-  );
-}
-
-/* =========================================================================
-   GitHub Contribution Galaxy — the classic contribution squares, plus the
-   same activity plotted as commits floating in 3D around a slowly spinning
-   globe. Squares come from a public contribution-calendar mirror (GitHub's
-   own REST API doesn't expose the calendar without auth); the galaxy is
-   built from real recent commits pulled off the public events API, with
-   per-repo language resolved via the repos endpoint (best-effort, capped
-   to keep unauthenticated rate limits in check).
-   ========================================================================= */
-function useGithubActivity() {
-  const [squares, setSquares] = useState(null);
-  const [squaresError, setSquaresError] = useState(false);
-  const [commits, setCommits] = useState(null);
-  const [commitsError, setCommitsError] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    fetch(`https://github-contributions-api.jogruber.de/v4/${CONFIG.githubUsername}?y=last`)
-      .then((r) => { if (!r.ok) throw new Error("bad response"); return r.json(); })
-      .then((data) => { if (!cancelled) setSquares(data); })
-      .catch(() => { if (!cancelled) setSquaresError(true); });
-
-    async function loadCommits() {
-      try {
-        const eventsRes = await fetch(
-          `https://api.github.com/users/${CONFIG.githubUsername}/events/public?per_page=100`
-        );
-        if (!eventsRes.ok) throw new Error("bad response");
-        const events = await eventsRes.json();
-
-        const rawCommits = [];
-        events
-          .filter((e) => e.type === "PushEvent")
-          .forEach((e) => {
-            (e.payload?.commits || []).forEach((c) => {
-              rawCommits.push({
-                sha: c.sha,
-                message: (c.message || "(no commit message)").split("\n")[0],
-                repo: e.repo?.name?.split("/")[1] || e.repo?.name || "unknown",
-                fullRepo: e.repo?.name,
-                date: e.created_at,
-                url: e.repo?.name ? `https://github.com/${e.repo.name}/commit/${c.sha}` : CONFIG.social.github,
-              });
-            });
-          });
-
-        const seen = new Set();
-        const deduped = rawCommits
-          .filter((c) => (seen.has(c.sha) ? false : (seen.add(c.sha), true)))
-          .slice(0, 150);
-
-        // Resolve language per unique repo, best-effort — a handful of extra
-        // calls at most, so unauthenticated rate limits stay comfortable.
-        const uniqueRepos = [...new Set(deduped.map((c) => c.fullRepo))].filter(Boolean).slice(0, 10);
-        const langPairs = await Promise.all(
-          uniqueRepos.map((full) =>
-            fetch(`https://api.github.com/repos/${full}`)
-              .then((r) => (r.ok ? r.json() : null))
-              .then((j) => [full, j?.language || null])
-              .catch(() => [full, null])
-          )
-        );
-        const langMap = Object.fromEntries(langPairs);
-        const withLang = deduped.map((c) => ({ ...c, language: langMap[c.fullRepo] || "Other" }));
-
-        if (!cancelled) setCommits(withLang);
-      } catch (e) {
-        if (!cancelled) setCommitsError(true);
-      }
-    }
-    loadCommits();
-
-    return () => { cancelled = true; };
-  }, []);
-
-  return { squares, squaresError, commits, commitsError };
-}
-
-function ContributionSquares({ data }) {
-  if (!data || !data.contributions) return null;
-
-  const weeks = [];
-  let currentWeek = [];
-  data.contributions.forEach((day) => {
-    currentWeek.push(day);
-    if (currentWeek.length === 7) {
-      weeks.push(currentWeek);
-      currentWeek = [];
-    }
-  });
-  if (currentWeek.length) weeks.push(currentWeek);
-
-  const total = data.contributions.reduce((s, d) => s + (d.count || 0), 0);
-
-  const levelColor = (level) =>
-    [
-      "rgba(255,255,255,0.05)",
-      "rgba(168,85,247,0.28)",
-      "rgba(168,85,247,0.52)",
-      "rgba(168,85,247,0.78)",
-      "#a855f7",
-    ][level] || "rgba(255,255,255,0.05)";
-
-  return (
-    <div>
-      <div style={{ display: "flex", gap: 3, overflowX: "auto", paddingBottom: 8 }}>
-        {weeks.map((week, wi) => (
-          <div key={wi} style={{ display: "flex", flexDirection: "column", gap: 3, flexShrink: 0 }}>
-            {week.map((day) => (
-              <div
-                key={day.date}
-                title={`${day.count} contribution${day.count === 1 ? "" : "s"} on ${day.date}`}
-                style={{ width: 10, height: 10, borderRadius: 2, background: levelColor(day.level) }}
-              />
-            ))}
-          </div>
-        ))}
-      </div>
-      <div style={{ marginTop: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "#8b8ba0" }}>
-        {total} contributions in the last year
-      </div>
-    </div>
-  );
-}
-
-// Places N points like a barred-spiral galaxy: a bright, dense core, a
-// handful of curling arms winding outward, and a thin disc (rather than a
-// sphere) so it actually reads as a galaxy once it's spinning. Deterministic
-// (no Math.random) so the layout is stable across re-renders.
-function galaxySpiralPoints(n, radius) {
-  const points = [];
-  if (n <= 0) return points;
-  const arms = 3;
-  const windings = 2.1; // how many times an arm winds around before reaching the rim
-  const armScatter = 0.42; // radians of scatter off the arm's centerline
-
-  const pseudoRandom = (seed) => {
-    const x = Math.sin(seed) * 43758.5453123;
-    return x - Math.floor(x); // 0..1
-  };
-
-  for (let i = 0; i < n; i++) {
-    // Bias radius toward the core (dense center, sparser rim) like a real
-    // spiral galaxy's brightness profile, instead of an even spread.
-    const t = (i + 0.5) / n; // 0..1, stable per-index "how far out" value
-    const r = radius * Math.pow(t, 0.62);
-
-    const arm = i % arms;
-    const armAngle = (arm / arms) * Math.PI * 2;
-    const windAngle = Math.pow(t, 0.85) * windings * Math.PI * 2;
-
-    const scatterAmount = armScatter * (0.35 + t * 0.9); // arms fray outward
-    const angleJitter = (pseudoRandom(i * 12.9898 + 3.1) - 0.5) * scatterAmount;
-    const radiusJitter = 1 + (pseudoRandom(i * 78.233 + 7.7) - 0.5) * 0.22;
-
-    const angle = armAngle + windAngle + angleJitter;
-    const rr = r * radiusJitter;
-
-    // Thin disc: most scatter is in-plane, with a small vertical spread that
-    // tapers toward the rim (galaxies are thicker at the bulge, thinner out
-    // in the arms).
-    const discThickness = radius * (0.16 * (1 - t * 0.75) + 0.02);
-    const heightJitter = (pseudoRandom(i * 39.19 + 1.3) - 0.5) * 2;
-
-    points.push({
-      x: Math.cos(angle) * rr,
-      z: Math.sin(angle) * rr,
-      y: heightJitter * discThickness,
-      t, // 0 (core) .. 1 (rim) — used to fade/scale points outward
-    });
-  }
-  return points;
-}
-
-function CommitGalaxy({ commits }) {
-  const [selected, setSelected] = useState(null);
-  const [paused, setPaused] = useState(false);
-  const isMobile = useIsMobile();
-  const reducedMotion = useReducedMotion();
-
-  const radius = isMobile ? 100 : 150;
-  const points = useMemo(() => galaxySpiralPoints(commits.length, radius), [commits.length, radius]);
-  // Viewed from a steep angle (rather than near side-on) so the spiral arms
-  // and core are actually visible, like a top-down galaxy photo tilted for
-  // depth. cos(TILT_DEG) is reused below to squash the static core glow into
-  // the same flattened-disc ellipse the points trace out.
-  const TILT_DEG = 62;
-
-  return (
-    <div>
-      <style>{`
-        @keyframes galaxySpin {
-          from { transform: rotateX(${TILT_DEG}deg) rotateY(0deg); }
-          to   { transform: rotateX(${TILT_DEG}deg) rotateY(360deg); }
-        }
-      `}</style>
-      <div
-        onMouseEnter={() => setPaused(true)}
-        onMouseLeave={() => setPaused(false)}
-        style={{
-          position: "relative", width: "100%", maxWidth: 440,
-          height: isMobile ? 260 : 380, margin: "0 auto", perspective: 1000,
-        }}
-      >
-        <div
-          aria-hidden="true"
-          style={{
-            position: "absolute", top: "50%", left: "50%",
-            width: radius * 2.1, height: radius * 2.1,
-            transform: `translate(-50%,-50%) scaleY(${Math.cos((TILT_DEG * Math.PI) / 180).toFixed(3)})`,
-            borderRadius: "50%",
-            background: "radial-gradient(circle at 50% 50%, rgba(255,255,255,0.5), rgba(168,85,247,0.4) 12%, rgba(168,85,247,0.14) 32%, rgba(34,211,238,0.05) 58%, transparent 76%)",
-            boxShadow: "0 0 90px rgba(168,85,247,0.16)",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute", inset: 0, transformStyle: "preserve-3d",
-            animation: reducedMotion ? "none" : "galaxySpin 34s linear infinite",
-            animationPlayState: paused ? "paused" : "running",
-            transform: reducedMotion ? `rotateX(${TILT_DEG}deg) rotateY(0deg)` : undefined,
-          }}
-        >
-          {commits.map((commit, i) => {
-            const p = points[i];
-            if (!p) return null;
-            const color = LANG_COLORS[commit.language] || LANG_COLORS.default;
-            const isSel = selected?.sha === commit.sha;
-            // Brighter and slightly larger near the core, dimmer and smaller
-            // out toward the rim — mimics a galaxy's actual brightness falloff.
-            const core = 1 - p.t;
-            const size = isSel ? 15 : 5 + core * 5;
-            const glowOpacity = isSel ? 1 : 0.55 + core * 0.45;
-            return (
-              <button
-                key={commit.sha}
-                onClick={() => setSelected(commit)}
-                aria-label={`Commit to ${commit.repo}: ${commit.message}`}
-                title={`${commit.repo} — ${commit.message}`}
-                style={{
-                  position: "absolute", top: "50%", left: "50%",
-                  width: size, height: size, borderRadius: "50%",
-                  border: isSel ? "2px solid #fff" : "none", padding: 0, cursor: "pointer",
-                  background: color,
-                  opacity: glowOpacity,
-                  boxShadow: `0 0 ${5 + core * 6}px ${color}, 0 0 ${12 + core * 14}px ${color}88`,
-                  transform: `translate3d(${p.x}px, ${p.y}px, ${p.z}px) translate(-50%,-50%)`,
-                  transition: "width 0.15s, height 0.15s",
-                }}
-              />
-            );
-          })}
-        </div>
-      </div>
-
-      <div style={{ textAlign: "center", marginTop: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#5a5a6e" }}>
-        hover to pause the orbit · click a commit to inspect it
-      </div>
-
-      {selected && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Commit details"
-          onClick={() => setSelected(null)}
-          style={{
-            position: "fixed", inset: 0, zIndex: 200, display: "flex",
-            alignItems: "center", justifyContent: "center", padding: 20,
-            background: "rgba(7,7,12,0.72)", backdropFilter: "blur(4px)",
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: "min(420px, 100%)", borderRadius: 14, padding: 24,
-              background: "#0c0c14", border: "1px solid rgba(168,85,247,0.35)",
-              boxShadow: "0 0 40px rgba(168,85,247,0.2)",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "#a855f7", letterSpacing: 2 }}>
-                COMMIT
-              </span>
-              <button
-                onClick={() => setSelected(null)}
-                aria-label="Close"
-                style={{ background: "none", border: "none", cursor: "pointer", color: "#8b8ba0", padding: 0, lineHeight: 0 }}
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <p style={{ color: "#e4e4f0", fontSize: 15, lineHeight: 1.6, margin: "0 0 18px", fontFamily: "'Space Grotesk', sans-serif" }}>
-              {selected.message}
-            </p>
-            <div style={{ display: "grid", gap: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span style={{ color: "#5a5a6e" }}>repository</span>
-                <span style={{ color: "#e4e4f0" }}>{selected.repo}</span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ color: "#5a5a6e" }}>language</span>
-                <span style={{ display: "flex", alignItems: "center", gap: 6, color: "#e4e4f0" }}>
-                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: LANG_COLORS[selected.language] || LANG_COLORS.default }} />
-                  {selected.language}
-                </span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span style={{ color: "#5a5a6e" }}>date</span>
-                <span style={{ color: "#e4e4f0" }}>
-                  {new Date(selected.date).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}
-                </span>
-              </div>
-            </div>
-            <a
-              href={selected.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 6, marginTop: 20,
-                fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "#22d3ee",
-                textDecoration: "none", border: "1px solid rgba(34,211,238,0.3)",
-                padding: "8px 14px", borderRadius: 8,
-              }}
-            >
-              view on GitHub <ArrowUpRight size={13} />
-            </a>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function GithubGalaxySection() {
-  const { squares, squaresError, commits, commitsError } = useGithubActivity();
-  const { unlock } = useAchievements();
-
-  // "Explored the commit galaxy" — unlocks once the section has scrolled
-  // far enough into view that the visitor is actually looking at it.
-  useEffect(() => {
-    const el = document.getElementById("commit-galaxy");
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) unlock("explored-galaxy");
-        });
-      },
-      { threshold: 0.4 }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [unlock]);
-
-  const errorBoxStyle = {
-    fontFamily: "'JetBrains Mono', monospace", color: "#f87171", fontSize: 13,
-    padding: 16, border: "1px solid rgba(248,113,113,0.3)", borderRadius: 8,
-    background: "rgba(248,113,113,0.06)",
-  };
-  const loadingTextStyle = { fontFamily: "'JetBrains Mono', monospace", color: "#a855f7", fontSize: 13 };
-
-  return (
-    <Section id="commit-galaxy" label="07 / commit galaxy">
-      <h2 style={{ fontSize: "clamp(28px,4vw,40px)", color: "#e4e4f0", margin: "0 0 12px", fontFamily: "'Space Grotesk', sans-serif" }}>
-        GitHub Contribution Galaxy
-      </h2>
-      <p style={{ color: "#9c9cb0", fontSize: 14, lineHeight: 1.7, margin: "0 0 36px", maxWidth: 640 }}>
-        The classic squares, plus the same activity floating in 3D — every dot in the galaxy below is a real commit. Click one for the repository, message, language, and date.
-      </p>
-
-      <div style={{ marginBottom: 48 }}>
-        {squaresError && <div style={errorBoxStyle}>&gt; contribution graph unreachable — try again later.</div>}
-        {!squaresError && !squares && (
-          <div style={loadingTextStyle}>&gt; loading contribution graph<span style={{ animation: "blink 1s step-end infinite" }}>_</span></div>
-        )}
-        {squares && <ContributionSquares data={squares} />}
-      </div>
-
-      <div>
-        {commitsError && <div style={errorBoxStyle}>&gt; commit uplink failed — GitHub API unreachable or rate-limited.</div>}
-        {!commitsError && !commits && (
-          <div style={loadingTextStyle}>&gt; charting commits in orbit<span style={{ animation: "blink 1s step-end infinite" }}>_</span></div>
-        )}
-        {commits && commits.length > 0 && <CommitGalaxy commits={commits} />}
-        {commits && commits.length === 0 && <div style={loadingTextStyle}>&gt; no recent public commit activity found.</div>}
       </div>
     </Section>
   );
@@ -2791,10 +2007,66 @@ function CertificationsSection() {
 }
 
 /* =========================================================================
+   Hackathons — same badge-preview entry style as Certifications
+   ========================================================================= */
+function HackathonEntry({ title, issuer, date, description, images, isLast }) {
+  return (
+    <div style={{ display: "flex", gap: 22, paddingBottom: isLast ? 0 : 30 }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 4 }}>
+        <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#22d3ee", flexShrink: 0 }} />
+        {!isLast && <span style={{ flex: 1, width: 1, background: "rgba(34,211,238,0.25)", marginTop: 4 }} />}
+      </div>
+      <div style={{ flex: 1, minWidth: 0, paddingBottom: 4 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 14, marginBottom: 6 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 17, color: "#e4e4f0", fontWeight: 600 }}>
+              {title}
+            </span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "#8b8ba0" }}>
+              {date}
+            </span>
+          </div>
+          <BadgeGroup images={images} title={title} />
+        </div>
+        <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: "#22d3ee", margin: "0 0 10px" }}>
+          {issuer}
+        </p>
+        <p style={{ margin: 0, color: "#c2c2d4", fontSize: 14, lineHeight: 1.8 }}>{description}</p>
+      </div>
+    </div>
+  );
+}
+
+function HackathonsSection() {
+  return (
+    <Section id="hackathons" label="06 / hackathons">
+      <h2 style={{ fontSize: "clamp(28px,4vw,40px)", color: "#e4e4f0", margin: "0 0 12px", fontFamily: "'Space Grotesk', sans-serif" }}>
+        Hackathons
+      </h2>
+      <p style={{ color: "#9c9cb0", fontSize: 14, margin: "0 0 40px", maxWidth: 560 }}>
+        Competitive builds against the clock. Listed chronologically.
+      </p>
+      <div>
+        {CONFIG.hackathons.map((h, i) => (
+          <HackathonEntry
+            key={i}
+            title={h.name}
+            issuer={h.issuer}
+            date={h.date}
+            description={h.description}
+            images={h.images}
+            isLast={i === CONFIG.hackathons.length - 1}
+          />
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+/* =========================================================================
    Resume section
    ========================================================================= */
 function ResumeSection() {
-  const { unlock } = useAchievements();
   return (
     <Section id="resume" label="08 / dossier">
       <div style={{
@@ -2815,7 +2087,6 @@ function ResumeSection() {
           target="_blank"
           rel="noopener noreferrer"
           download="Calvin_Pillay_Resume.pdf"
-          onClick={() => unlock("downloaded-resume")}
           style={{
             display: "flex", alignItems: "center", gap: 10, padding: "14px 26px",
             borderRadius: 10, background: "#a855f7", color: "#0b0b14", fontWeight: 600,
@@ -2908,25 +2179,6 @@ function CrossedSwordsIcon({ size = 16 }) {
 }
 
 function ContactSection() {
-  const { unlock } = useAchievements();
-
-  // "Reached the bottom" — unlocks once the contact section (the last one
-  // on the page) actually scrolls into view.
-  useEffect(() => {
-    const el = document.getElementById("contact");
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) unlock("reached-the-bottom");
-        });
-      },
-      { threshold: 0.3 }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [unlock]);
-
   return (
     <Section id="contact" label="09 / connect" style={{ paddingBottom: 60 }}>
       <div style={{ textAlign: "center" }}>
@@ -2938,9 +2190,9 @@ function ContactSection() {
         </p>
         <div style={{ display: "flex", justifyContent: "center", gap: 16, flexWrap: "wrap" }}>
           <EmailLink style={socialBtn}><Mail size={16} /> email</EmailLink>
-          <a href={CONFIG.social.github} target="_blank" rel="noopener noreferrer" style={socialBtn} onClick={() => unlock("social-butterfly")}><Github size={16} /> github</a>
-          <a href={CONFIG.social.linkedin} target="_blank" rel="noopener noreferrer" style={socialBtn} onClick={() => unlock("social-butterfly")}><Linkedin size={16} /> linkedin</a>
-          <a href={CONFIG.social.clashOfClans} target="_blank" rel="noopener noreferrer" style={socialBtn} onClick={() => unlock("social-butterfly")}><CrossedSwordsIcon size={16} /> clash of clans</a>
+          <a href={CONFIG.social.github} target="_blank" rel="noopener noreferrer" style={socialBtn}><Github size={16} /> github</a>
+          <a href={CONFIG.social.linkedin} target="_blank" rel="noopener noreferrer" style={socialBtn}><Linkedin size={16} /> linkedin</a>
+          <a href={CONFIG.social.clashOfClans} target="_blank" rel="noopener noreferrer" style={socialBtn}><CrossedSwordsIcon size={16} /> clash of clans</a>
         </div>
         <p style={{ marginTop: 60, fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "#5a5a6e" }}>
           press "/" to open the terminal · {CONFIG.location}
@@ -3108,7 +2360,6 @@ function Hero({ scrollY, reducedMotion }) {
             target="_blank"
             rel="noopener noreferrer"
             download="Calvin_Pillay_Resume.pdf"
-            onClick={() => unlock("downloaded-resume")}
             style={{
               display: "flex", alignItems: "center", gap: 8, padding: "14px 26px", borderRadius: 10,
               border: "1px solid rgba(34,211,238,0.4)", color: "#22d3ee", textDecoration: "none",
@@ -3580,9 +2831,8 @@ function Nav() {
   const links = [
     ["home", "home"], ["about", "about"], ["skills", "skills"],
     ["experience", "experience"], ["education", "education"],
-    ["certifications", "certifications"], ["projects", "projects"],
-    ["galaxy", "commit-galaxy"],
-    ["resume", "resume"], ["contact", "contact"],
+    ["certifications", "certifications"], ["hackathons", "hackathons"],
+    ["projects", "projects"], ["resume", "resume"], ["contact", "contact"],
   ];
   return (
     <nav style={{
@@ -3649,7 +2899,6 @@ export default function Portfolio() {
   }, [navigate]);
 
   return (
-    <AchievementsProvider>
     <div style={{ background: "#07070c", minHeight: "100vh", position: "relative" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
@@ -3710,16 +2959,13 @@ export default function Portfolio() {
       <ExperienceSection />
       <EducationSection />
       <CertificationsSection />
+      <HackathonsSection />
       <ProjectsSection />
-      <GithubGalaxySection />
       <ResumeSection />
       <PlaygroundCTA />
       <ContactSection />
 
       <CommandTerminal open={termOpen} setOpen={setTermOpen} onNavigate={navigate} onDrive={handleDrive} />
-      <NightOwlCheck />
-      <TrophyButton />
     </div>
-    </AchievementsProvider>
   );
 }
