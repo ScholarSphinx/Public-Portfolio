@@ -227,6 +227,15 @@ const CONFIG = {
       ],
     },
   ],
+  hackathons: [
+    {
+      name: "Entelect Challenge University Cup",
+      issuer: "Entelect Challenge",
+      date: "18 April 2026",
+      description: "Competed in the Entelect Challenge University Cup.",
+      images: [],
+    },
+  ],
   techStack: [
     { name: "Python", color: "#3776ab", logo: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/python/python-original.svg" },
     { name: "JavaScript", color: "#f1e05a", logo: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/javascript/javascript-original.svg" },
@@ -1096,7 +1105,7 @@ function CommandTerminal({ open, setOpen, onNavigate, onDrive }) {
     let out = "";
     if (!cmd) return;
     if (cmd === "help") {
-      out = "commands: goto [home|about|skills|experience|education|certifications|projects|resume|contact], whoami, resume, cat resume, skills, matrix, snake, creed, drive, sudo hire calvin, clear, exit";
+      out = "commands: goto [home|about|skills|experience|education|certifications|hackathons|projects|resume|contact], whoami, resume, cat resume, skills, matrix, snake, creed, drive, sudo hire calvin, clear, exit";
     } else if (cmd === "whoami") {
       out = `${CONFIG.name} — ${CONFIG.title} — access_level: OMEGA`;
     } else if (cmd.startsWith("goto ")) {
@@ -1778,7 +1787,7 @@ function ProjectsSection() {
   }, []);
 
   return (
-    <Section id="projects" label="06 / repositories">
+    <Section id="projects" label="07 / repositories">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 40, flexWrap: "wrap", gap: 16 }}>
         <h2 style={{ fontSize: "clamp(28px,4vw,40px)", color: "#e4e4f0", margin: 0, fontFamily: "'Space Grotesk', sans-serif" }}>
           Live from GitHub
@@ -2235,7 +2244,7 @@ function GithubGalaxySection() {
   const loadingTextStyle = { fontFamily: "'JetBrains Mono', monospace", color: "#a855f7", fontSize: 13 };
 
   return (
-    <Section id="commit-galaxy" label="07 / commit galaxy">
+    <Section id="commit-galaxy" label="08 / commit galaxy">
       <h2 style={{ fontSize: "clamp(28px,4vw,40px)", color: "#e4e4f0", margin: "0 0 12px", fontFamily: "'Space Grotesk', sans-serif" }}>
         GitHub Contribution Galaxy
       </h2>
@@ -2791,12 +2800,41 @@ function CertificationsSection() {
 }
 
 /* =========================================================================
+   Hackathons — reuses the same entry layout as Certifications
+   ========================================================================= */
+function HackathonsSection() {
+  return (
+    <Section id="hackathons" label="06 / hackathons">
+      <h2 style={{ fontSize: "clamp(28px,4vw,40px)", color: "#e4e4f0", margin: "0 0 12px", fontFamily: "'Space Grotesk', sans-serif" }}>
+        Hackathons
+      </h2>
+      <p style={{ color: "#9c9cb0", fontSize: 14, margin: "0 0 40px", maxWidth: 560 }}>
+        Competitive builds under time pressure.
+      </p>
+      <div>
+        {CONFIG.hackathons.map((hack, i) => (
+          <CertificationEntry
+            key={i}
+            title={hack.name}
+            issuer={hack.issuer}
+            date={hack.date}
+            description={hack.description}
+            images={hack.images}
+            isLast={i === CONFIG.hackathons.length - 1}
+          />
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+/* =========================================================================
    Resume section
    ========================================================================= */
 function ResumeSection() {
   const { unlock } = useAchievements();
   return (
-    <Section id="resume" label="08 / dossier">
+    <Section id="resume" label="09 / dossier">
       <div style={{
         border: "1px solid rgba(168,85,247,0.25)", borderRadius: 14, padding: "40px",
         background: "rgba(255,255,255,0.02)", display: "flex", justifyContent: "space-between",
@@ -2928,7 +2966,7 @@ function ContactSection() {
   }, [unlock]);
 
   return (
-    <Section id="contact" label="09 / connect" style={{ paddingBottom: 60 }}>
+    <Section id="contact" label="10 / connect" style={{ paddingBottom: 60 }}>
       <div style={{ textAlign: "center" }}>
         <h2 style={{ fontSize: "clamp(28px,5vw,48px)", color: "#e4e4f0", margin: "0 0 16px", fontFamily: "'Space Grotesk', sans-serif" }}>
           Let's build something.
@@ -3580,7 +3618,8 @@ function Nav() {
   const links = [
     ["home", "home"], ["about", "about"], ["skills", "skills"],
     ["experience", "experience"], ["education", "education"],
-    ["certifications", "certifications"], ["projects", "projects"],
+    ["certifications", "certifications"], ["hackathons", "hackathons"],
+    ["projects", "projects"],
     ["galaxy", "commit-galaxy"],
     ["resume", "resume"], ["contact", "contact"],
   ];
@@ -3710,6 +3749,7 @@ export default function Portfolio() {
       <ExperienceSection />
       <EducationSection />
       <CertificationsSection />
+      <HackathonsSection />
       <ProjectsSection />
       <GithubGalaxySection />
       <ResumeSection />
