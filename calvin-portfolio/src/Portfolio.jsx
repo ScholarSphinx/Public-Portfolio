@@ -195,7 +195,12 @@ const CONFIG = {
       issuer: "Off the Record",
       date: "29 August 2026",
       description: "Awarded Best Speaker at Off the Record.",
-      images: [],
+      images: [
+        {
+          src: `${import.meta.env.BASE_URL}images/academic-honours/off-the-record-best-speaker.pdf`,
+          preview: `${import.meta.env.BASE_URL}images/academic-honours/off-the-record-best-speaker-preview.png`,
+        },
+      ],
     },
   ],
   certifications: [
@@ -252,7 +257,7 @@ const CONFIG = {
       date: "22 August 2026",
       description: "Placed in the Top 30 at the Entelect University Cup.",
       images: [
-        { src: `${import.meta.env.BASE_URL}images/hackathons/entelect-university-cup-top30.jpeg` },
+        { src: `${import.meta.env.BASE_URL}images/hackathons/entelect-university-cup-top30.png` },
       ],
     },
   ],
@@ -2697,8 +2702,14 @@ function ExperienceSection() {
    Shared badge-preview building blocks — used by both Academic Honours
    entries (which may show 1 or 2 badges) and Certification entries.
    ========================================================================= */
-function BadgePreviewIcon({ image, label, entryTitle }) {
+function BadgePreviewIcon({ image, preview, label, entryTitle }) {
   const [hovered, setHovered] = useState(false);
+  // `image` is what opens on click. If a separate `preview` image (e.g. a PNG
+  // of a PDF's first page) is supplied, that's what shows on hover. A PDF with
+  // no preview image falls back to an embedded first-page frame.
+  const isPdf = /\.pdf($|[?#])/i.test(image);
+  const previewSrc = preview || image;
+  const embedPdf = isPdf && !preview;
   return (
     <div
       style={{ position: "relative", display: "inline-flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}
@@ -2738,16 +2749,25 @@ function BadgePreviewIcon({ image, label, entryTitle }) {
             boxShadow: "0 12px 32px rgba(0,0,0,0.55)",
           }}
         >
-          <img
-            src={image}
-            alt={`${label ? `${entryTitle} — ${label}` : entryTitle} certificate preview`}
-            style={{ width: "100%", height: 140, objectFit: "cover", display: "block", background: "#1a1a24" }}
-          />
+          {embedPdf ? (
+            <iframe
+              src={`${image}#toolbar=0&navpanes=0&scrollbar=0&view=Fit`}
+              title={`${label ? `${entryTitle} — ${label}` : entryTitle} certificate preview`}
+              tabIndex={-1}
+              style={{ width: "100%", height: 160, border: 0, display: "block", background: "#fff" }}
+            />
+          ) : (
+            <img
+              src={previewSrc}
+              alt={`${label ? `${entryTitle} — ${label}` : entryTitle} certificate preview`}
+              style={{ width: "100%", height: 140, objectFit: "cover", display: "block", background: "#1a1a24" }}
+            />
+          )}
           <div style={{
             padding: "8px 10px", fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
             color: "#9c9cb0", borderTop: "1px solid rgba(34,211,238,0.2)",
           }}>
-            click to open full image
+            click to open full {isPdf ? "PDF" : "image"}
           </div>
         </div>
       )}
@@ -2764,6 +2784,7 @@ function BadgeGroup({ images, title }) {
         <BadgePreviewIcon
           key={i}
           image={img.src}
+          preview={img.preview}
           label={multi ? (img.label || `Badge ${i + 1}`) : undefined}
           entryTitle={title}
         />
