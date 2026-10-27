@@ -90,10 +90,41 @@ const CONFIG = {
       details: "Computer Systems, Advanced Programming with Data Structures, Theory of Computation",
     },
   ],
-  // Academic honours & competition results — displayed under Education, with
-  // certification-style badges. Images live in their own folder, separate
-  // from /images/certs/. Ordered chronologically (oldest first).
+  // Academic honours — olympiads, talent searches and competitions. Displayed
+  // under Education with certification-style badges. Images live in their own
+  // folder, separate from /images/certs/. Ordered chronologically (oldest first).
   academicHonours: [
+    {
+      title: "Information Technology National Olympiad",
+      issuer: "S.A. Computer Olympiad",
+      date: "2020",
+      description: "Completion of Round 1 and Round 2.",
+      images: [
+        { src: `${import.meta.env.BASE_URL}images/academic-honours/it-national-olympiad.jpeg` },
+      ],
+    },
+    {
+      title: "Computer Talent Search",
+      issuer: "Standard Bank",
+      date: "2021",
+      description: "Gold ranking (Top 7% in SA).",
+      images: [
+        { src: `${import.meta.env.BASE_URL}images/academic-honours/computer-talent-search.jpeg` },
+      ],
+    },
+    {
+      title: "SA Mathematics Team Competition — Top 100",
+      issuer: "AMESA / ASSA",
+      date: "2022",
+      description: "Ranked in the national Top 100.",
+      images: [
+        { src: `${import.meta.env.BASE_URL}images/academic-honours/amesa-top100.jpeg` },
+      ],
+    },
+  ],
+  // Public speaking, debating & Model UN honours — displayed as their own list
+  // beneath Academic Honours. Same badge/image conventions, chronological.
+  publicSpeakingHonours: [
     {
       title: "Top Speaker — Helen Joseph Oratory Challenge",
       issuer: "Helen Joseph Oratory Challenge",
@@ -132,24 +163,6 @@ const CONFIG = {
       ],
     },
     {
-      title: "Information Technology National Olympiad",
-      issuer: "S.A. Computer Olympiad",
-      date: "2020",
-      description: "Completion of Round 1 and Round 2.",
-      images: [
-        { src: `${import.meta.env.BASE_URL}images/academic-honours/it-national-olympiad.jpeg` },
-      ],
-    },
-    {
-      title: "Computer Talent Search",
-      issuer: "Standard Bank",
-      date: "2021",
-      description: "Gold ranking (Top 7% in SA).",
-      images: [
-        { src: `${import.meta.env.BASE_URL}images/academic-honours/computer-talent-search.jpeg` },
-      ],
-    },
-    {
       title: "Best Speaker Award",
       issuer: "QueensBurgh Girls High School (QGHS) MUN",
       date: "23 September 2021",
@@ -169,15 +182,6 @@ const CONFIG = {
       ],
     },
     {
-      title: "SA Mathematics Team Competition — Top 100",
-      issuer: "AMESA / ASSA",
-      date: "2022",
-      description: "Ranked in the national Top 100.",
-      images: [
-        { src: `${import.meta.env.BASE_URL}images/academic-honours/amesa-top100.jpeg` },
-      ],
-    },
-    {
       title: "Best Delegation",
       issuer: "UKZN Model United Nations (UKZNDC)",
       date: "2024",
@@ -185,6 +189,13 @@ const CONFIG = {
       images: [
         { src: `${import.meta.env.BASE_URL}images/academic-honours/ukzn-mun-best-delegation.jpeg` },
       ],
+    },
+    {
+      title: "Best Speaker — Off the Record",
+      issuer: "Off the Record",
+      date: "29 August 2026",
+      description: "Awarded Best Speaker at Off the Record.",
+      images: [],
     },
   ],
   certifications: [
@@ -235,6 +246,15 @@ const CONFIG = {
       description: "Competed in the Entelect Challenge University Cup.",
       images: [],
     },
+    {
+      name: "Entelect University Cup — Top 30",
+      issuer: "Entelect",
+      date: "22 August 2026",
+      description: "Placed in the Top 30 at the Entelect University Cup.",
+      images: [
+        { src: `${import.meta.env.BASE_URL}images/hackathons/entelect-university-cup-top30.jpeg` },
+      ],
+    },
   ],
   techStack: [
     { name: "Python", color: "#3776ab", logo: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/python/python-original.svg" },
@@ -261,7 +281,7 @@ const CONFIG = {
   featuredRepos: [
     "Checkers",
     "Comp315-Project",
-    "Data-Structure-Implementations-Library",
+    "GOM314159/StringTheory", // Comp307Game — a repo I contribute to (owner/name form)
     "Gravity-Simulation",
     "ISTN-Group-Project",
     "ISTN3SI-Project",
@@ -807,6 +827,9 @@ function buildResumeText() {
   const honourLines = CONFIG.academicHonours
     .map((h) => `  - ${h.title} — ${h.issuer} (${h.date})`)
     .join("\n");
+  const speakingLines = CONFIG.publicSpeakingHonours
+    .map((h) => `  - ${h.title} — ${h.issuer} (${h.date})`)
+    .join("\n");
   const expLines = CONFIG.experience
     .map((e) => `  - ${e.role}, ${e.org} (${e.period})`)
     .join("\n");
@@ -826,6 +849,9 @@ function buildResumeText() {
     "",
     "ACADEMIC HONOURS",
     honourLines,
+    "",
+    "PUBLIC SPEAKING & DEBATING HONOURS",
+    speakingLines,
     "",
     "EXPERIENCE",
     expLines,
@@ -1421,7 +1447,123 @@ function GeometricParallax({ scrollY, reducedMotion, isMobile }) {
 }
 
 /* =========================================================================
-   Neon blue dolphin — swims a full loop around the edge of the viewport as
+   3D dolphin model — loads /models/dolphin.glb with three.js, plays its
+   "ArmatureAction" swim cycle on a loop, and renders it side-on (head to the
+   right) into a small transparent canvas. three.js and the GLTF loader are
+   imported lazily so they don't bloat the initial page load. The model is
+   re-skinned with a cyan, slightly emissive material that keeps the original
+   texture, so it matches the site's neon look. Everything (renderer, geometry,
+   texture, rAF loop) is torn down on unmount.
+   ========================================================================= */
+const DOLPHIN_MODEL_URL = `${import.meta.env.BASE_URL}models/dolphin.glb`;
+const DOLPHIN_CLIP_NAME = "ArmatureAction";
+const DOLPHIN_W = 180;
+const DOLPHIN_H = 90;
+
+function DolphinModel({ boostRef, animate }) {
+  const canvasRef = useRef(null);
+  const animateRef = useRef(animate);
+  animateRef.current = animate;
+
+  useEffect(() => {
+    let disposed = false;
+    let rafId = 0;
+    let teardown = () => {};
+
+    (async () => {
+      try {
+        const [THREE, { GLTFLoader }] = await Promise.all([
+          import("three"),
+          import("three/examples/jsm/loaders/GLTFLoader.js"),
+        ]);
+        if (disposed || !canvasRef.current) return;
+
+        const renderer = new THREE.WebGLRenderer({ canvas: canvasRef.current, alpha: true, antialias: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        renderer.setSize(DOLPHIN_W, DOLPHIN_H, false);
+        renderer.setClearColor(0x000000, 0);
+
+        const scene = new THREE.Scene();
+        // The model is ~1 unit long (head at +Z, up is +Y). Looking down +X from
+        // the -X side puts +Z (the head) on the right of the screen. The frame is
+        // sized to hold the whole swim cycle, tail flex included.
+        const halfH = 0.29;
+        const halfW = halfH * (DOLPHIN_W / DOLPHIN_H);
+        const camera = new THREE.OrthographicCamera(-halfW, halfW, halfH + 0.01, -halfH + 0.01, 0.1, 10);
+        camera.position.set(-3, 0.01, 0);
+        camera.lookAt(0, 0.01, 0);
+
+        scene.add(new THREE.AmbientLight(0xbfe9ff, 1.4));
+        const key = new THREE.DirectionalLight(0xffffff, 2.2);
+        key.position.set(-2, 2, 1);
+        scene.add(key);
+
+        const gltf = await new GLTFLoader().loadAsync(DOLPHIN_MODEL_URL);
+        if (disposed) { renderer.dispose(); return; }
+
+        const model = gltf.scene;
+        model.rotation.y = 0.28; // slight three-quarter turn so the fins read
+        const ownedMaterials = [];
+        model.traverse((o) => {
+          if (!o.isMesh) return;
+          o.frustumCulled = false; // skinned vertices move outside the bind-pose bounds
+          const mat = new THREE.MeshStandardMaterial({
+            map: o.material.map || null,
+            color: 0x7dd3fc,
+            emissive: 0x0ea5e9,
+            emissiveIntensity: 0.4,
+            roughness: 0.45,
+            metalness: 0,
+            side: THREE.DoubleSide,
+          });
+          o.material.dispose();
+          o.material = mat;
+          ownedMaterials.push(mat);
+        });
+        scene.add(model);
+
+        const clip = THREE.AnimationClip.findByName(gltf.animations, DOLPHIN_CLIP_NAME) || gltf.animations[0];
+        const mixer = new THREE.AnimationMixer(model);
+        if (clip) mixer.clipAction(clip).play();
+        mixer.update(0);
+
+        const clock = new THREE.Clock();
+        const render = () => {
+          rafId = requestAnimationFrame(render);
+          const dt = Math.min(clock.getDelta(), 0.05);
+          if (animateRef.current && clip) {
+            boostRef.current *= Math.pow(0.12, dt); // decay back to idle swimming
+            mixer.update(dt * (0.8 + boostRef.current));
+          }
+          renderer.render(scene, camera);
+        };
+        render();
+
+        teardown = () => {
+          cancelAnimationFrame(rafId);
+          mixer.stopAllAction();
+          model.traverse((o) => { if (o.isMesh) o.geometry.dispose(); });
+          ownedMaterials.forEach((m) => { m.map?.dispose(); m.dispose(); });
+          renderer.dispose();
+          renderer.forceContextLoss();
+        };
+      } catch (err) {
+        console.warn("Dolphin model failed to load:", err);
+      }
+    })();
+
+    return () => {
+      disposed = true;
+      cancelAnimationFrame(rafId);
+      teardown();
+    };
+  }, [boostRef]);
+
+  return <canvas ref={canvasRef} style={{ width: DOLPHIN_W, height: DOLPHIN_H, display: "block" }} />;
+}
+
+/* =========================================================================
+   Neon blue dolphin (3D model) — swims a full loop around the edge of the viewport as
    the page is scrolled: across the top, down the right side, back along
    the bottom, and up the left side. Reversing scroll direction turns the
    dolphin around mid-swim rather than just retracing pixels. The loop's
@@ -1445,10 +1587,14 @@ function NeonDolphin({ scrollY, f }) {
   // turns around when the person actually reverses their scrolling.
   const [direction, setDirection] = useState(1); // 1 = scrolling down, -1 = scrolling up
   const prevScrollRef = useRef(scrollY);
+  // Scrolling faster makes the dolphin beat its tail faster; DolphinModel
+  // decays this back to a lazy idle swim once scrolling stops.
+  const swimBoostRef = useRef(0);
   useEffect(() => {
     const delta = scrollY - prevScrollRef.current;
     if (delta > 0.6) setDirection(1);
     else if (delta < -0.6) setDirection(-1);
+    swimBoostRef.current = Math.min(3, swimBoostRef.current + Math.abs(delta) * 0.04);
     prevScrollRef.current = scrollY;
   }, [scrollY]);
 
@@ -1484,62 +1630,21 @@ function NeonDolphin({ scrollY, f }) {
   const bobTransform = bobAxis === "y" ? `translateY(${bob}px)` : `translateX(${bob}px)`;
 
   return (
-    <svg
-      width="150"
-      height="75"
-      viewBox="0 0 200 100"
+    <div
       style={{
         position: "absolute",
         top: y,
         left: x,
+        width: DOLPHIN_W,
+        height: DOLPHIN_H,
         transform: `translate(-50%, -50%) ${bobTransform} ${faceTransform}`,
         opacity: 0.9,
+        pointerEvents: "none",
         filter: "drop-shadow(0 0 6px #22d3ee) drop-shadow(0 0 15px rgba(34,211,238,0.7))",
       }}
     >
-      {/* Body: beak, melon, back, swept dorsal fin, tapered peduncle, and
-          notched tail flukes — one closed, filled path so it reads as a
-          solid body rather than a wireframe outline. */}
-      <path
-        d="M 198,47
-           C 193,42 187,38 180,36
-           C 176,35 172,34 169,33
-           C 162,30 152,29 138,28
-           C 133,17 124,6 113,3
-           C 107,9 101,18 97,27
-           C 80,33 60,41 42,49
-           C 33,53 27,55 22,58
-           C 15,52 7,47 2,44
-           C 8,50 13,54 17,58
-           C 11,63 4,69 1,76
-           C 8,72 16,68 24,65
-           C 39,70 58,75 76,78
-           C 91,80 103,79 112,77
-           C 127,74 141,69 154,63
-           C 165,58 178,54 189,49
-           C 193,48 196,47 198,47 Z"
-        fill="#38bdf8"
-        fillOpacity="0.25"
-        stroke="#7dd3fc"
-        strokeWidth="1.4"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-      />
-      {/* Pectoral fin, swept back beneath the head */}
-      <path
-        d="M 140,73
-           C 133,80 122,86 106,93
-           C 114,87 124,80 132,75
-           C 135,74 138,73 140,73 Z"
-        fill="#38bdf8"
-        fillOpacity="0.25"
-        stroke="#7dd3fc"
-        strokeWidth="1"
-        strokeLinejoin="round"
-      />
-      {/* Eye — bright glowing dot, reads better than a dark pupil now that the body is translucent */}
-      <circle cx="180" cy="39" r="2.2" fill="#7dd3fc" />
-    </svg>
+      <DolphinModel boostRef={swimBoostRef} animate={f !== 0} />
+    </div>
   );
 }
 /* =========================================================================
@@ -1760,7 +1865,8 @@ function ProjectsSection() {
         const [uRes, ...repoResults] = await Promise.all([
           fetch(`https://api.github.com/users/${CONFIG.githubUsername}`),
           ...CONFIG.featuredRepos.map((name) =>
-            fetch(`https://api.github.com/repos/${CONFIG.githubUsername}/${name}`)
+            // Bare names belong to me; "owner/name" entries are repos I contribute to.
+            fetch(`https://api.github.com/repos/${name.includes("/") ? name : `${CONFIG.githubUsername}/${name}`}`)
           ),
         ]);
         if (!uRes.ok) throw new Error("fetch failed");
@@ -2702,7 +2808,7 @@ function EducationSection() {
   return (
     <Section id="education" label="04 / education">
       <h2 style={{ fontSize: "clamp(28px,4vw,40px)", color: "#e4e4f0", margin: "0 0 40px", fontFamily: "'Space Grotesk', sans-serif" }}>
-        Education and Academic Honours
+        Education and Honours
       </h2>
       <div style={{ marginBottom: 56 }}>
         {CONFIG.education.map((ed, i) => (
@@ -2735,6 +2841,29 @@ function EducationSection() {
             description={h.description}
             images={h.images}
             isLast={i === CONFIG.academicHonours.length - 1}
+          />
+        ))}
+      </div>
+
+      <h3 style={{
+        fontSize: "clamp(18px,2.4vw,22px)", color: "#e4e4f0", margin: "56px 0 10px",
+        fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+      }}>
+        Public Speaking &amp; Debating Honours
+      </h3>
+      <p style={{ color: "#9c9cb0", fontSize: 14, margin: "0 0 32px", maxWidth: 560 }}>
+        Oratory, debating and Model UN results, listed chronologically.
+      </p>
+      <div>
+        {CONFIG.publicSpeakingHonours.map((h, i) => (
+          <AcademicHonourEntry
+            key={i}
+            title={h.title}
+            issuer={h.issuer}
+            date={h.date}
+            description={h.description}
+            images={h.images}
+            isLast={i === CONFIG.publicSpeakingHonours.length - 1}
           />
         ))}
       </div>
@@ -3762,4 +3891,4 @@ export default function Portfolio() {
     </div>
     </AchievementsProvider>
   );
-}
+}
