@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useContext, createContext, useMemo } from "react";
 import {
   Github, Linkedin, Mail, Terminal, ExternalLink, Star, GitFork,
-  Download, ChevronRight, X, Cpu, Lock, Radio, ArrowUpRight, Instagram, Binary, User, Car, Award, Trophy
+  Download, ChevronRight, X, Cpu, Lock, Radio, ArrowUpRight, Instagram, Binary, User, Car, Award, Trophy, Database
 } from "lucide-react";
 import {
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
@@ -267,13 +267,16 @@ const CONFIG = {
     { name: "React", color: "#61dafb", logo: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/react/react-original.svg" },
     { name: "C++", color: "#f34b7d", logo: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/cplusplus/cplusplus-original.svg" },
     { name: "C#", color: "#68217a", logo: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/csharp/csharp-original.svg" },
+    { name: "Unity", color: "#cfcfd8", invert: true, logo: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/unity/unity-original.svg" },
     { name: "Java", color: "#b07219", logo: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/java/java-original.svg" },
+    { name: "SQL", color: "#e38c00", icon: "database" },
     { name: "Assembly", color: "#6e6e6e", icon: "binary" },
     { name: "HTML", color: "#e34c26", logo: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/html5/html5-original.svg" },
     { name: "CSS", color: "#563d7c", logo: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/css3/css3-original.svg" },
     { name: "Git", color: "#f05032", logo: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/git/git-original.svg" },
     { name: "Docker", color: "#2496ed", logo: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/docker/docker-original.svg" },
     { name: "Linux", color: "#f5c211", logo: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/linux/linux-original.svg" },
+    { name: "Bash", color: "#4eaa25", icon: "terminal" },
   ],
   skills: [
     { subject: "Systems / C++", value: 88 },
@@ -306,7 +309,8 @@ const LANG_COLORS = {
   Python: "#3776ab", JavaScript: "#f1e05a", TypeScript: "#3178c6",
   "C++": "#f34b7d", C: "#555555", Java: "#b07219", HTML: "#e34c26",
   CSS: "#563d7c", Shell: "#89e051", Rust: "#dea584", Go: "#00ADD8",
-  "C#": "#178600", default: "#a855f7",
+  "C#": "#178600", TSQL: "#e38c00", PLpgSQL: "#336790", ShaderLab: "#cfcfd8",
+  default: "#a855f7",
 };
 
 function clamp(value, min, max) {
@@ -1070,13 +1074,335 @@ function SnakeGame({ onExit }) {
   );
 }
 
+/* =========================================================================
+   Tetris — second terminal mini-game, launched with the `tetris` command
+   ========================================================================= */
+const TETRIS_PIECES = {
+  I: { color: "#22d3ee", m: [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]] },
+  O: { color: "#fbbf24", m: [[1,1],[1,1]] },
+  T: { color: "#a855f7", m: [[0,1,0],[1,1,1],[0,0,0]] },
+  S: { color: "#4ade80", m: [[0,1,1],[1,1,0],[0,0,0]] },
+  Z: { color: "#f87171", m: [[1,1,0],[0,1,1],[0,0,0]] },
+  J: { color: "#60a5fa", m: [[1,0,0],[1,1,1],[0,0,0]] },
+  L: { color: "#fb923c", m: [[0,0,1],[1,1,1],[0,0,0]] },
+};
+const TETRIS_KEYS = Object.keys(TETRIS_PIECES);
+
+// 7-bag randomiser: every piece appears once per bag, so droughts can't happen.
+function tetrisMakeBag() {
+  const bag = [...TETRIS_KEYS];
+  for (let i = bag.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [bag[i], bag[j]] = [bag[j], bag[i]];
+  }
+  return bag;
+}
+
+// dir > 0 rotates clockwise, dir < 0 counter-clockwise.
+function tetrisRotate(m, dir) {
+  const n = m.length;
+  const r = Array.from({ length: n }, () => Array(n).fill(0));
+  for (let y = 0; y < n; y++) {
+    for (let x = 0; x < n; x++) {
+      if (dir > 0) r[x][n - 1 - y] = m[y][x];
+      else r[n - 1 - x][y] = m[y][x];
+    }
+  }
+  return r;
+}
+
+function tetrisCollides(board, m, px, py, cols, rows) {
+  for (let y = 0; y < m.length; y++) {
+    for (let x = 0; x < m[y].length; x++) {
+      if (!m[y][x]) continue;
+      const bx = px + x;
+      const by = py + y;
+      if (bx < 0 || bx >= cols || by >= rows) return true;
+      if (by >= 0 && board[by][bx]) return true;
+    }
+  }
+  return false;
+}
+
+function TetrisGame({ onExit }) {
+  const cell = 16;
+  const cols = 10;
+  const rows = 20;
+  const canvasRef = useRef(null);
+  const nextRef = useRef(null);
+  const stateRef = useRef(null);
+  const [score, setScore] = useState(0);
+  const [lines, setLines] = useState(0);
+  const [level, setLevel] = useState(1);
+  const [best, setBest] = useState(0);
+  const [gameOver, setGameOver] = useState(false);
+  const [paused, setPaused] = useState(false);
+
+  // Pushes the mutable game state into React so the HUD re-renders. Cheap —
+  // React bails out when a value hasn't changed — so it's called after every
+  // meaningful change rather than every frame.
+  const sync = () => {
+    const s = stateRef.current;
+    if (!s) return;
+    setScore(s.score);
+    setLines(s.lines);
+    setLevel(s.level);
+    setBest((b) => Math.max(b, s.score));
+    setGameOver(s.over);
+    setPaused(s.paused);
+  };
+
+  const spawn = (s) => {
+    const key = s.queue.shift();
+    if (s.queue.length < 7) s.queue.push(...tetrisMakeBag());
+    const m = TETRIS_PIECES[key].m.map((r) => [...r]);
+    s.piece = { key, m, x: Math.floor((cols - m.length) / 2), y: 0 };
+    s.acc = 0;
+    if (tetrisCollides(s.board, m, s.piece.x, s.piece.y, cols, rows)) s.over = true;
+  };
+
+  const resetGame = () => {
+    const s = {
+      board: Array.from({ length: rows }, () => Array(cols).fill(null)),
+      queue: [...tetrisMakeBag(), ...tetrisMakeBag()],
+      piece: null, acc: 0, score: 0, lines: 0, level: 1, over: false, paused: false,
+    };
+    spawn(s);
+    stateRef.current = s;
+    sync();
+  };
+
+  const lockPiece = (s) => {
+    const { m, x: px, y: py, key } = s.piece;
+    for (let y = 0; y < m.length; y++) {
+      for (let x = 0; x < m[y].length; x++) {
+        if (!m[y][x]) continue;
+        const by = py + y;
+        if (by < 0) { s.over = true; continue; }
+        s.board[by][px + x] = TETRIS_PIECES[key].color;
+      }
+    }
+    // Clear any full rows
+    const kept = s.board.filter((row) => row.some((c) => !c));
+    const cleared = rows - kept.length;
+    if (cleared > 0) {
+      s.board = [...Array.from({ length: cleared }, () => Array(cols).fill(null)), ...kept];
+      s.lines += cleared;
+      s.score += [0, 100, 300, 500, 800][cleared] * s.level;
+      s.level = Math.floor(s.lines / 10) + 1;
+    }
+    if (!s.over) spawn(s);
+    sync();
+  };
+
+  const tryMove = (s, dx, dy) => {
+    const p = s.piece;
+    if (tetrisCollides(s.board, p.m, p.x + dx, p.y + dy, cols, rows)) return false;
+    p.x += dx;
+    p.y += dy;
+    return true;
+  };
+
+  // Rotation with simple wall kicks — nudges the piece sideways if the
+  // rotated shape would clip the wall or the stack.
+  const tryRotate = (s, dir) => {
+    const p = s.piece;
+    const rotated = tetrisRotate(p.m, dir);
+    for (const kick of [0, -1, 1, -2, 2]) {
+      if (!tetrisCollides(s.board, rotated, p.x + kick, p.y, cols, rows)) {
+        p.m = rotated;
+        p.x += kick;
+        return;
+      }
+    }
+  };
+
+  useEffect(() => { resetGame(); }, []);
+
+  // Controls
+  useEffect(() => {
+    const onKey = (e) => {
+      const s = stateRef.current;
+      if (!s) return;
+      const k = e.key;
+      if (k === "Enter" && s.over) { resetGame(); return; }
+      if (k === "p" || k === "P") { if (!s.over) { s.paused = !s.paused; sync(); } return; }
+      if (s.over || s.paused) return;
+
+      let handled = true;
+      if (k === "ArrowLeft" || k === "a" || k === "A") tryMove(s, -1, 0);
+      else if (k === "ArrowRight" || k === "d" || k === "D") tryMove(s, 1, 0);
+      else if (k === "ArrowUp" || k === "w" || k === "W" || k === "x" || k === "X") tryRotate(s, 1);
+      else if (k === "z" || k === "Z") tryRotate(s, -1);
+      else if (k === "ArrowDown" || k === "s" || k === "S") {
+        if (tryMove(s, 0, 1)) { s.score += 1; s.acc = 0; sync(); }
+        else lockPiece(s);
+      } else if (k === " ") {
+        if (!e.repeat) {
+          let dropped = 0;
+          while (tryMove(s, 0, 1)) dropped++;
+          s.score += dropped * 2;
+          lockPiece(s);
+        }
+      } else handled = false;
+      if (handled) e.preventDefault();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Render + gravity loop
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const nextCanvas = nextRef.current;
+    if (!canvas || !nextCanvas) return;
+    canvas.width = cols * cell;
+    canvas.height = rows * cell;
+    nextCanvas.width = 4 * cell;
+    nextCanvas.height = 4 * cell;
+    const ctx = canvas.getContext("2d");
+    const nctx = nextCanvas.getContext("2d");
+    let raf;
+    let last = 0;
+
+    const drawCell = (c, x, y, color, glow) => {
+      c.fillStyle = color;
+      c.shadowColor = glow ? color : "transparent";
+      c.shadowBlur = glow ? 6 : 0;
+      c.fillRect(x * cell + 1, y * cell + 1, cell - 2, cell - 2);
+      c.shadowBlur = 0;
+    };
+
+    const draw = () => {
+      const s = stateRef.current;
+      ctx.fillStyle = "#0b0b14";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = "rgba(168,85,247,0.07)";
+      for (let x = 0; x <= cols; x++) {
+        ctx.beginPath(); ctx.moveTo(x * cell, 0); ctx.lineTo(x * cell, rows * cell); ctx.stroke();
+      }
+      for (let y = 0; y <= rows; y++) {
+        ctx.beginPath(); ctx.moveTo(0, y * cell); ctx.lineTo(cols * cell, y * cell); ctx.stroke();
+      }
+      nctx.fillStyle = "#0b0b14";
+      nctx.fillRect(0, 0, nextCanvas.width, nextCanvas.height);
+      if (!s || !s.piece) return;
+
+      for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+          if (s.board[y][x]) drawCell(ctx, x, y, s.board[y][x], false);
+        }
+      }
+
+      const p = s.piece;
+      const color = TETRIS_PIECES[p.key].color;
+      // Ghost piece — outline of where it will land
+      let gy = p.y;
+      while (!tetrisCollides(s.board, p.m, p.x, gy + 1, cols, rows)) gy++;
+      ctx.strokeStyle = `${color}88`;
+      p.m.forEach((row, y) => row.forEach((v, x) => {
+        if (v) ctx.strokeRect((p.x + x) * cell + 1.5, (gy + y) * cell + 1.5, cell - 3, cell - 3);
+      }));
+      p.m.forEach((row, y) => row.forEach((v, x) => {
+        if (v && p.y + y >= 0) drawCell(ctx, p.x + x, p.y + y, color, true);
+      }));
+
+      // Next-piece preview, centred in its 4x4 box
+      const nk = s.queue[0];
+      const nm = TETRIS_PIECES[nk].m;
+      const off = (4 - nm.length) / 2;
+      nm.forEach((row, y) => row.forEach((v, x) => {
+        if (v) drawCell(nctx, x + off, y + off, TETRIS_PIECES[nk].color, true);
+      }));
+
+      if (s.over || s.paused) {
+        ctx.fillStyle = "rgba(4,4,8,0.75)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#e4e4f0";
+        ctx.textAlign = "center";
+        ctx.font = "13px 'JetBrains Mono', monospace";
+        if (s.over) {
+          ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 10);
+          ctx.fillText("press enter to retry", canvas.width / 2, canvas.height / 2 + 10);
+        } else {
+          ctx.fillText("PAUSED", canvas.width / 2, canvas.height / 2 - 10);
+          ctx.fillText("press p to resume", canvas.width / 2, canvas.height / 2 + 10);
+        }
+        ctx.textAlign = "left";
+      }
+    };
+
+    const loop = (ts) => {
+      if (!last) last = ts;
+      const dt = ts - last;
+      last = ts;
+      const s = stateRef.current;
+      if (s && !s.over && !s.paused) {
+        s.acc += dt;
+        const interval = Math.max(90, 700 - (s.level - 1) * 60);
+        if (s.acc >= interval) {
+          s.acc = 0;
+          if (!tryMove(s, 0, 1)) lockPiece(s);
+        }
+      }
+      draw();
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const stat = (label, value) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <span style={{ color: "#5a5a6e", fontSize: 10, letterSpacing: 1 }}>{label}</span>
+      <span style={{ color: "#e4e4f0", fontSize: 14 }}>{value}</span>
+    </div>
+  );
+
+  return (
+    <div style={{ padding: 14, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+      <div style={{
+        display: "flex", justifyContent: "space-between", width: cols * cell + 12 + 4 * cell,
+        fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "#9c9cb0",
+      }}>
+        <span>tetris</span>
+        <button
+          onClick={onExit}
+          style={{
+            background: "none", border: "none", color: "#5a5a6e", cursor: "pointer",
+            fontFamily: "inherit", fontSize: 12, padding: 0,
+          }}
+        >
+          esc to exit
+        </button>
+      </div>
+      <div style={{ display: "flex", gap: 12, alignItems: "flex-start", fontFamily: "'JetBrains Mono', monospace" }}>
+        <canvas ref={canvasRef} style={{ borderRadius: 6, border: "1px solid rgba(168,85,247,0.3)" }} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, width: 4 * cell }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <span style={{ color: "#5a5a6e", fontSize: 10, letterSpacing: 1 }}>NEXT</span>
+            <canvas ref={nextRef} style={{ borderRadius: 6, border: "1px solid rgba(168,85,247,0.3)" }} />
+          </div>
+          {stat("SCORE", score)}
+          {stat("LINES", lines)}
+          {stat("LEVEL", level)}
+          {stat("BEST", best)}
+        </div>
+      </div>
+      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#5a5a6e", textAlign: "center", lineHeight: 1.6 }}>
+        ← → move · ↑ rotate · ↓ soft drop · space hard drop · p pause
+      </div>
+    </div>
+  );
+}
+
 function CommandTerminal({ open, setOpen, onNavigate, onDrive }) {
   const [input, setInput] = useState("");
   const [history, setHistory] = useState([
     "type 'help' to list commands",
   ]);
   const [matrixActive, setMatrixActive] = useState(false);
-  const [game, setGame] = useState(null); // null | "snake"
+  const [game, setGame] = useState(null); // null | "snake" | "tetris"
   const inputRef = useRef(null);
   const canvasRef = useRef(null);
   const { unlock } = useAchievements();
@@ -1136,7 +1462,7 @@ function CommandTerminal({ open, setOpen, onNavigate, onDrive }) {
     let out = "";
     if (!cmd) return;
     if (cmd === "help") {
-      out = "commands: goto [home|about|skills|experience|education|certifications|hackathons|projects|resume|contact], whoami, resume, cat resume, skills, matrix, snake, creed, drive, sudo hire calvin, clear, exit";
+      out = "commands: goto [home|about|skills|experience|education|certifications|hackathons|projects|resume|contact], whoami, resume, cat resume, skills, matrix, snake, tetris, creed, drive, sudo hire calvin, clear, exit";
     } else if (cmd === "whoami") {
       out = `${CONFIG.name} — ${CONFIG.title} — access_level: OMEGA`;
     } else if (cmd.startsWith("goto ")) {
@@ -1160,6 +1486,9 @@ function CommandTerminal({ open, setOpen, onNavigate, onDrive }) {
     } else if (cmd === "snake") {
       out = "launching snake — arrow keys / wasd to move, esc to exit";
       setGame("snake");
+    } else if (cmd === "tetris") {
+      out = "launching tetris — arrows / wasd to move, space to hard drop, p to pause, esc to exit";
+      setGame("tetris");
     } else if (cmd === "creed") {
       out = buildCreedArt();
     } else if (cmd === "drive") {
@@ -1252,6 +1581,8 @@ function CommandTerminal({ open, setOpen, onNavigate, onDrive }) {
             </div>
             {game === "snake" ? (
               <SnakeGame onExit={() => setGame(null)} />
+            ) : game === "tetris" ? (
+              <TetrisGame onExit={() => setGame(null)} />
             ) : (
               <>
                 <div style={{ position: "relative", minHeight: matrixActive ? 160 : undefined }}>
@@ -2520,7 +2851,7 @@ function ConnectAndStack() {
         languages I speak in code
       </p>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        {CONFIG.techStack.map(({ name, color, logo, icon }) => (
+        {CONFIG.techStack.map(({ name, color, logo, icon, invert }) => (
           <span
             key={name}
             style={{
@@ -2531,9 +2862,16 @@ function ConnectAndStack() {
             }}
           >
             {logo ? (
-              <img src={logo} alt="" aria-hidden="true" width={16} height={16} style={{ display: "block" }} />
+              <img
+                src={logo} alt="" aria-hidden="true" width={16} height={16}
+                style={{ display: "block", filter: invert ? "invert(1)" : undefined }}
+              />
             ) : icon === "binary" ? (
               <Binary size={16} color={color} />
+            ) : icon === "database" ? (
+              <Database size={16} color={color} />
+            ) : icon === "terminal" ? (
+              <Terminal size={16} color={color} />
             ) : (
               <span style={{ width: 10, height: 10, borderRadius: "50%", background: color }} />
             )}
