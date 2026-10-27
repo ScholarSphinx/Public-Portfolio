@@ -2328,7 +2328,7 @@ function ProjectsSection() {
    same activity plotted as commits floating in 3D around a slowly spinning
    globe. Squares come from a public contribution-calendar mirror (GitHub's
    own REST API doesn't expose the calendar without auth); the galaxy is
-   built from real recent commits pulled off the public events API, with
+   built from real public commits via GitHub's commit search API, with
    per-repo language resolved via the repos endpoint (best-effort, capped
    to keep unauthenticated rate limits in check).
    ========================================================================= */
@@ -2348,32 +2348,33 @@ function useGithubActivity() {
 
     async function loadCommits() {
       try {
-        const eventsRes = await fetch(
-          `https://api.github.com/users/${CONFIG.githubUsername}/events/public?per_page=100`
+        // GitHub stopped including the commit list in public push events, so
+        // the events feed can't be used here any more. Commit search returns
+        // the user's real public commits (including repos they contribute to).
+        const q = encodeURIComponent(`author:${CONFIG.githubUsername}`);
+        const base = `https://api.github.com/search/commits?q=${q}&sort=author-date&order=desc&per_page=100`;
+        const pages = await Promise.all(
+          [1, 2].map((pg) =>
+            fetch(`${base}&page=${pg}`, { headers: { Accept: "application/vnd.github+json" } })
+              .then((r) => (r.ok ? r.json() : null))
+              .catch(() => null)
+          )
         );
-        if (!eventsRes.ok) throw new Error("bad response");
-        const events = await eventsRes.json();
-
-        const rawCommits = [];
-        events
-          .filter((e) => e.type === "PushEvent")
-          .forEach((e) => {
-            (e.payload?.commits || []).forEach((c) => {
-              rawCommits.push({
-                sha: c.sha,
-                message: (c.message || "(no commit message)").split("\n")[0],
-                repo: e.repo?.name?.split("/")[1] || e.repo?.name || "unknown",
-                fullRepo: e.repo?.name,
-                date: e.created_at,
-                url: e.repo?.name ? `https://github.com/${e.repo.name}/commit/${c.sha}` : CONFIG.social.github,
-              });
-            });
-          });
+        const items = pages.flatMap((p) => p?.items || []);
+        if (!items.length) throw new Error("no commits returned");
 
         const seen = new Set();
-        const deduped = rawCommits
+        const deduped = items
+          .map((i) => ({
+            sha: i.sha,
+            message: (i.commit?.message || "(no commit message)").split("\n")[0],
+            repo: i.repository?.name || "unknown",
+            fullRepo: i.repository?.full_name,
+            date: i.commit?.author?.date,
+            url: i.html_url,
+          }))
           .filter((c) => (seen.has(c.sha) ? false : (seen.add(c.sha), true)))
-          .slice(0, 150);
+          .slice(0, 200);
 
         // Resolve language per unique repo, best-effort — a handful of extra
         // calls at most, so unauthenticated rate limits stay comfortable.
@@ -2403,6 +2404,8 @@ function useGithubActivity() {
 }
 
 function ContributionSquares({ data }) {
+  // Hooks must run before the early return below.
+  const [selectedDay, setSelectedDay] = useState(null);
   if (!data || !data.contributions) return null;
 
   const weeks = [];
@@ -2429,158 +2432,537 @@ function ContributionSquares({ data }) {
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 3, overflowX: "auto", paddingBottom: 8 }}>
+      <style>{`
+        .gh-day { transition: transform 0.12s ease, outline-color 0.12s ease; outline: 1px solid transparent; }
+        .gh-day:hover, .gh-day:focus-visible { transform: scale(1.6); outline-color: #22d3ee; position: relative; z-index: 2; }
+      `}</style>
+      <div style={{ display: "flex", gap: 3, overflowX: "auto", padding: "4px 4px 8px" }}>
         {weeks.map((week, wi) => (
           <div key={wi} style={{ display: "flex", flexDirection: "column", gap: 3, flexShrink: 0 }}>
             {week.map((day) => (
-              <div
+              <button
                 key={day.date}
+                type="button"
+                className="gh-day"
+                onClick={() => setSelectedDay(day)}
+                aria-label={`${day.count} contribution${day.count === 1 ? "" : "s"} on ${day.date} — click for details`}
                 title={`${day.count} contribution${day.count === 1 ? "" : "s"} on ${day.date}`}
-                style={{ width: 10, height: 10, borderRadius: 2, background: levelColor(day.level) }}
+                style={{
+                  width: 10, height: 10, borderRadius: 2, padding: 0, border: "none",
+                  cursor: "pointer", background: levelColor(day.level),
+                  outlineColor: selectedDay?.date === day.date ? "#22d3ee" : undefined,
+                }}
               />
             ))}
           </div>
         ))}
       </div>
       <div style={{ marginTop: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "#8b8ba0" }}>
-        {total} contributions in the last year
+        {total} contributions in the last year · click a square for that day
+      </div>
+      {selectedDay && <DayDialog day={selectedDay} onClose={() => setSelectedDay(null)} />}
+    </div>
+  );
+}
+
+// Everything below the contribution squares: the day-detail dialog, and the
+// canvas spiral galaxy. The galaxy is thousands of tiny additive-blended
+// "dust" particles laid out along two logarithmic-ish spiral arms around a
+// bright bulge, tilted and slowly spinning. A handful of larger, coloured
+// stars are laid along the same arms — those are the real, clickable commits.
+function mulberry32(seed) {
+  let a = seed | 0;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// ~N(0,1), cheap
+function gaussish(rnd) {
+  return (rnd() + rnd() + rnd() - 1.5) * 2;
+}
+
+const GALAXY_ARMS = 2;
+const GALAXY_WINDINGS = 0.95;
+
+// One sample on a spiral arm, in units of the galaxy radius (so 0..1).
+function galaxyArmSample(rnd, scatterScale) {
+  const rr = 0.05 + 0.95 * Math.pow(rnd(), 1.35);
+  const arm = Math.floor(rnd() * GALAXY_ARMS);
+  const scatter = (0.1 + 0.38 * rr) * scatterScale;
+  const th = (arm * Math.PI * 2) / GALAXY_ARMS + rr * GALAXY_WINDINGS * Math.PI * 2 + gaussish(rnd) * scatter;
+  const y = gaussish(rnd) * 0.012 * (1 - 0.6 * rr) * scatterScale;
+  return { x: Math.cos(th) * rr, z: Math.sin(th) * rr, y, t: rr };
+}
+
+function galaxyColor(t) {
+  const stops = [
+    [0, [255, 255, 255]],
+    [0.12, [205, 248, 255]],
+    [0.35, [95, 215, 238]],
+    [0.7, [120, 190, 198]],
+    [1, [150, 170, 160]],
+  ];
+  for (let i = 1; i < stops.length; i++) {
+    if (t <= stops[i][0]) {
+      const [t0, c0] = stops[i - 1];
+      const [t1, c1] = stops[i];
+      const f = (t - t0) / (t1 - t0);
+      return c0.map((v, k) => Math.round(v + (c1[k] - v) * f));
+    }
+  }
+  return stops[stops.length - 1][1];
+}
+
+function buildGalaxyDust(n) {
+  const rnd = mulberry32(7);
+  const RADIAL_LEVELS = 12;
+  const ALPHA_LEVELS = 3;
+  const raw = [];
+  for (let i = 0; i < n; i++) {
+    const kind = rnd();
+    let x, y, z, t;
+    if (kind < 0.18) {
+      // bulge — a small, dense, roughly spherical blob
+      const rr = Math.abs(gaussish(rnd)) * 0.11;
+      const th = rnd() * Math.PI * 2;
+      const ph = Math.acos(2 * rnd() - 1);
+      x = rr * Math.sin(ph) * Math.cos(th);
+      z = rr * Math.sin(ph) * Math.sin(th);
+      y = rr * Math.cos(ph) * 0.7;
+      t = Math.hypot(x, z);
+    } else if (kind < 0.4) {
+      // faint diffuse disc between the arms
+      const rr = Math.pow(rnd(), 0.7) * 0.98;
+      const th = rnd() * Math.PI * 2;
+      x = Math.cos(th) * rr;
+      z = Math.sin(th) * rr;
+      y = gaussish(rnd) * 0.01 * (1 - rr * 0.5);
+      t = rr;
+    } else {
+      ({ x, y, z, t } = galaxyArmSample(rnd, 1));
+    }
+    const warm = t > 0.25 && rnd() < 0.1;
+    const lvl = Math.min(RADIAL_LEVELS - 1, Math.floor(Math.min(t, 0.999) * RADIAL_LEVELS));
+    const aLvl = Math.floor(rnd() * ALPHA_LEVELS);
+    const big = rnd() < 0.12 ? 1 : 0;
+    // bins 0..(levels*alphas*2-1) are cool, the rest are warm specks
+    const coolBin = (lvl * ALPHA_LEVELS + aLvl) * 2 + big;
+    const bin = warm ? RADIAL_LEVELS * ALPHA_LEVELS * 2 + aLvl * 2 + big : coolBin;
+    raw.push({ x, y, z, bin });
+  }
+  raw.sort((a, b) => a.bin - b.bin);
+
+  const bins = [];
+  const binStyle = (bin) => {
+    const coolCount = RADIAL_LEVELS * ALPHA_LEVELS * 2;
+    const big = bin % 2;
+    let rgb, aLvl;
+    if (bin >= coolCount) {
+      rgb = [226, 214, 150];
+      aLvl = Math.floor((bin - coolCount) / 2);
+    } else {
+      const lvl = Math.floor(bin / 2 / ALPHA_LEVELS);
+      aLvl = Math.floor(bin / 2) % ALPHA_LEVELS;
+      rgb = galaxyColor((lvl + 0.5) / RADIAL_LEVELS);
+    }
+    const alpha = [0.38, 0.62, 0.9][aLvl];
+    return { style: `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha})`, size: big ? 1.7 : 1.05 };
+  };
+  let start = 0;
+  for (let i = 1; i <= raw.length; i++) {
+    if (i === raw.length || raw[i].bin !== raw[start].bin) {
+      bins.push({ ...binStyle(raw[start].bin), start, end: i });
+      start = i;
+    }
+  }
+  const xs = new Float32Array(raw.length);
+  const ys = new Float32Array(raw.length);
+  const zs = new Float32Array(raw.length);
+  raw.forEach((p, i) => { xs[i] = p.x; ys[i] = p.y; zs[i] = p.z; });
+  return { xs, ys, zs, bins };
+}
+
+// Clickable star positions, sitting on the same arms as the dust. Sorted so
+// the newest commits (index 0) sit closest to the bright core.
+function galaxyStarPoints(n) {
+  const rnd = mulberry32(99);
+  const pts = [];
+  for (let i = 0; i < n; i++) pts.push(galaxyArmSample(rnd, 0.55));
+  pts.sort((a, b) => a.t - b.t);
+  return pts;
+}
+
+const dayCommitCache = new Map();
+
+function DayDialog({ day, onClose }) {
+  const [state, setState] = useState({ status: day.count > 0 ? "loading" : "empty", commits: [] });
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  // Best-effort: GitHub's commit search finds the public commits authored on
+  // that day. Private-repo work, issues and PRs still count toward the square
+  // but won't appear here, so an empty result is explained rather than hidden.
+  useEffect(() => {
+    if (!(day.count > 0)) { setState({ status: "empty", commits: [] }); return undefined; }
+    const cached = dayCommitCache.get(day.date);
+    if (cached) { setState(cached); return undefined; }
+    let cancelled = false;
+    setState({ status: "loading", commits: [] });
+    const q = encodeURIComponent(`author:${CONFIG.githubUsername} author-date:${day.date}`);
+    fetch(`https://api.github.com/search/commits?q=${q}&sort=author-date&order=desc&per_page=30`, {
+      headers: { Accept: "application/vnd.github+json" },
+    })
+      .then((r) => { if (!r.ok) throw new Error("bad response"); return r.json(); })
+      .then((j) => {
+        const commits = (j.items || []).map((i) => ({
+          sha: i.sha,
+          message: (i.commit?.message || "(no commit message)").split("\n")[0],
+          repo: i.repository?.full_name || "",
+          url: i.html_url,
+        }));
+        const next = { status: commits.length ? "ok" : "none", commits };
+        dayCommitCache.set(day.date, next);
+        if (!cancelled) setState(next);
+      })
+      .catch(() => { if (!cancelled) setState({ status: "error", commits: [] }); });
+    return () => { cancelled = true; };
+  }, [day.date, day.count]);
+
+  const mono = "'JetBrains Mono', monospace";
+  const note = { fontFamily: mono, fontSize: 12, lineHeight: 1.6, color: "#8b8ba0", margin: 0 };
+  const prettyDate = new Date(`${day.date}T00:00:00`).toLocaleDateString(undefined, {
+    weekday: "long", year: "numeric", month: "long", day: "numeric",
+  });
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Contribution details"
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, zIndex: 200, display: "flex",
+        alignItems: "center", justifyContent: "center", padding: 20,
+        background: "rgba(7,7,12,0.72)", backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "min(460px, 100%)", borderRadius: 14, padding: 24,
+          background: "#0c0c14", border: "1px solid rgba(168,85,247,0.35)",
+          boxShadow: "0 0 40px rgba(168,85,247,0.2)",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+          <span style={{ fontFamily: mono, fontSize: 12, color: "#a855f7", letterSpacing: 2 }}>CONTRIBUTIONS</span>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            style={{ background: "none", border: "none", cursor: "pointer", color: "#8b8ba0", padding: 0, lineHeight: 0 }}
+          >
+            <X size={18} />
+          </button>
+        </div>
+        <p style={{ color: "#e4e4f0", fontSize: 20, margin: "0 0 4px", fontFamily: "'Space Grotesk', sans-serif" }}>
+          {day.count} contribution{day.count === 1 ? "" : "s"}
+        </p>
+        <p style={{ ...note, marginBottom: 16 }}>{prettyDate}</p>
+
+        {state.status === "loading" && (
+          <p style={{ ...note, color: "#a855f7" }}>
+            &gt; fetching commits<span style={{ animation: "blink 1s step-end infinite" }}>_</span>
+          </p>
+        )}
+        {state.status === "empty" && <p style={note}>&gt; nothing on this day.</p>}
+        {state.status === "none" && (
+          <p style={note}>
+            &gt; no public commits found for this day — the activity may be in private repos, issues or pull requests.
+          </p>
+        )}
+        {state.status === "error" && (
+          <p style={{ ...note, color: "#f87171" }}>&gt; couldn't reach GitHub right now (it may be rate-limiting) — try again in a minute.</p>
+        )}
+        {state.status === "ok" && (
+          <div style={{ display: "grid", gap: 8, maxHeight: 220, overflowY: "auto", paddingRight: 4 }}>
+            {state.commits.map((c) => (
+              <a
+                key={c.sha}
+                href={c.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "block", textDecoration: "none", padding: "8px 10px", borderRadius: 8,
+                  border: "1px solid rgba(168,85,247,0.2)", background: "rgba(255,255,255,0.02)",
+                }}
+              >
+                <span style={{ display: "block", color: "#e4e4f0", fontSize: 13, fontFamily: "'Space Grotesk', sans-serif" }}>{c.message}</span>
+                <span style={{ display: "block", color: "#5a5a6e", fontSize: 11, fontFamily: mono, marginTop: 2 }}>{c.repo}</span>
+              </a>
+            ))}
+          </div>
+        )}
+
+        <a
+          href={`https://github.com/${CONFIG.githubUsername}?tab=overview&from=${day.date}&to=${day.date}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 6, marginTop: 20,
+            fontFamily: mono, fontSize: 12, color: "#22d3ee",
+            textDecoration: "none", border: "1px solid rgba(34,211,238,0.3)",
+            padding: "8px 14px", borderRadius: 8,
+          }}
+        >
+          view this day on GitHub <ArrowUpRight size={13} />
+        </a>
       </div>
     </div>
   );
 }
 
-// Places N points like a barred-spiral galaxy: a bright, dense core, a
-// handful of curling arms winding outward, and a thin disc (rather than a
-// sphere) so it actually reads as a galaxy once it's spinning. Deterministic
-// (no Math.random) so the layout is stable across re-renders.
-function galaxySpiralPoints(n, radius) {
-  const points = [];
-  if (n <= 0) return points;
-  const arms = 3;
-  const windings = 2.1; // how many times an arm winds around before reaching the rim
-  const armScatter = 0.42; // radians of scatter off the arm's centerline
+function GalaxyCanvas({ stars, onPick, selectedId, reducedMotion, isMobile }) {
+  const wrapRef = useRef(null);
+  const canvasRef = useRef(null);
+  const screenRef = useRef([]);
+  const pausedRef = useRef(false);
+  const visibleRef = useRef(true);
+  const hoverIdRef = useRef(null);
+  const [hover, setHover] = useState(null);
 
-  const pseudoRandom = (seed) => {
-    const x = Math.sin(seed) * 43758.5453123;
-    return x - Math.floor(x); // 0..1
+  const dust = useMemo(() => buildGalaxyDust(isMobile ? 2600 : 5200), [isMobile]);
+  const points = useMemo(() => galaxyStarPoints(stars.length), [stars.length]);
+
+  // The render loop reads these from refs so it never has to restart when a
+  // star is selected or the commit list changes.
+  const starsRef = useRef(stars);
+  const pointsRef = useRef(points);
+  const selectedRef = useRef(selectedId);
+  starsRef.current = stars;
+  pointsRef.current = points;
+  selectedRef.current = selectedId;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const wrap = wrapRef.current;
+    if (!canvas || !wrap) return undefined;
+    const ctx = canvas.getContext("2d");
+    const TILT = (56 * Math.PI) / 180;
+    const cosT = Math.cos(TILT);
+    const sinT = Math.sin(TILT);
+    const CAM = 3;
+    let raf;
+    let angle = 0.6;
+    let W = 0, H = 0, R = 0, dpr = 1;
+
+    const resize = () => {
+      const w = wrap.clientWidth;
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      R = Math.min(w * 0.46, 380);
+      const h = Math.max(240, Math.round(R * 1.25));
+      if (w === W && h === H) return;
+      W = w; H = h;
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+      canvas.style.height = `${h}px`;
+    };
+
+    const observer = new IntersectionObserver(
+      (entries) => entries.forEach((e) => { visibleRef.current = e.isIntersecting; }),
+      { threshold: 0 }
+    );
+    observer.observe(wrap);
+
+    const frame = () => {
+      raf = requestAnimationFrame(frame);
+      if (!visibleRef.current) return;
+      resize();
+      if (!pausedRef.current && !reducedMotion) angle += 0.0022;
+
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, W, H);
+      ctx.globalCompositeOperation = "lighter";
+      const cx = W / 2;
+      const cy = H / 2;
+      const cosA = Math.cos(angle);
+      const sinA = Math.sin(angle);
+
+      // Soft core glow + faint haze, squashed into the same tilted ellipse
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.scale(1, cosT);
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R);
+      g.addColorStop(0, "rgba(255,255,255,0.95)");
+      g.addColorStop(0.07, "rgba(200,246,255,0.65)");
+      g.addColorStop(0.22, "rgba(60,190,230,0.26)");
+      g.addColorStop(0.5, "rgba(30,120,170,0.08)");
+      g.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(-R, -R, R * 2, R * 2);
+      ctx.restore();
+
+      const project = (px, py, pz) => {
+        const x1 = px * cosA - pz * sinA;
+        const z1 = px * sinA + pz * cosA;
+        const y2 = py * cosT - z1 * sinT;
+        const z2 = py * sinT + z1 * cosT;
+        const k = CAM / (CAM + z2);
+        return { sx: cx + x1 * R * k, sy: cy + y2 * R * k, k };
+      };
+
+      // Dust
+      const { xs, ys, zs, bins } = dust;
+      for (let b = 0; b < bins.length; b++) {
+        const bin = bins[b];
+        ctx.fillStyle = bin.style;
+        for (let i = bin.start; i < bin.end; i++) {
+          const p = project(xs[i], ys[i], zs[i]);
+          const s = bin.size * p.k;
+          ctx.fillRect(p.sx, p.sy, s, s);
+        }
+      }
+
+      // Clickable stars
+      const list = starsRef.current;
+      const pts = pointsRef.current;
+      const screen = [];
+      for (let i = 0; i < list.length; i++) {
+        const pt = pts[i];
+        if (!pt) continue;
+        const star = list[i];
+        const p = project(pt.x, pt.y, pt.z);
+        const isSel = selectedRef.current === star.id;
+        const isHover = hoverIdRef.current === star.id;
+        const r = (isSel ? 5.5 : 2 + (1 - pt.t) * 1.4 + (isHover ? 1.5 : 0)) * p.k;
+        ctx.fillStyle = star.color;
+        ctx.globalAlpha = 0.16;
+        ctx.beginPath(); ctx.arc(p.sx, p.sy, r * 3.2, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 0.95;
+        ctx.beginPath(); ctx.arc(p.sx, p.sy, r, 0, Math.PI * 2); ctx.fill();
+        if (isSel || isHover) {
+          ctx.globalAlpha = 0.9;
+          ctx.strokeStyle = "#ffffff";
+          ctx.lineWidth = 1.2;
+          ctx.beginPath(); ctx.arc(p.sx, p.sy, r + 3, 0, Math.PI * 2); ctx.stroke();
+        }
+        screen.push({ id: star.id, sx: p.sx, sy: p.sy, r: Math.max(10, r + 6), star });
+      }
+      ctx.globalAlpha = 1;
+      screenRef.current = screen;
+    };
+    raf = requestAnimationFrame(frame);
+    return () => { cancelAnimationFrame(raf); observer.disconnect(); };
+  }, [dust, reducedMotion]);
+
+  const pick = (e) => {
+    const rect = canvasRef.current.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    let best = null;
+    let bestD = Infinity;
+    for (const s of screenRef.current) {
+      const d = Math.hypot(s.sx - mx, s.sy - my);
+      if (d < s.r && d < bestD) { bestD = d; best = s; }
+    }
+    return { best, mx, my };
   };
 
-  for (let i = 0; i < n; i++) {
-    // Bias radius toward the core (dense center, sparser rim) like a real
-    // spiral galaxy's brightness profile, instead of an even spread.
-    const t = (i + 0.5) / n; // 0..1, stable per-index "how far out" value
-    const r = radius * Math.pow(t, 0.62);
+  const onMove = (e) => {
+    const { best, mx, my } = pick(e);
+    hoverIdRef.current = best ? best.id : null;
+    canvasRef.current.style.cursor = best ? "pointer" : "default";
+    setHover(best ? { x: mx, y: my, label: best.star.label } : null);
+  };
 
-    const arm = i % arms;
-    const armAngle = (arm / arms) * Math.PI * 2;
-    const windAngle = Math.pow(t, 0.85) * windings * Math.PI * 2;
-
-    const scatterAmount = armScatter * (0.35 + t * 0.9); // arms fray outward
-    const angleJitter = (pseudoRandom(i * 12.9898 + 3.1) - 0.5) * scatterAmount;
-    const radiusJitter = 1 + (pseudoRandom(i * 78.233 + 7.7) - 0.5) * 0.22;
-
-    const angle = armAngle + windAngle + angleJitter;
-    const rr = r * radiusJitter;
-
-    // Thin disc: most scatter is in-plane, with a small vertical spread that
-    // tapers toward the rim (galaxies are thicker at the bulge, thinner out
-    // in the arms).
-    const discThickness = radius * (0.16 * (1 - t * 0.75) + 0.02);
-    const heightJitter = (pseudoRandom(i * 39.19 + 1.3) - 0.5) * 2;
-
-    points.push({
-      x: Math.cos(angle) * rr,
-      z: Math.sin(angle) * rr,
-      y: heightJitter * discThickness,
-      t, // 0 (core) .. 1 (rim) — used to fade/scale points outward
-    });
-  }
-  return points;
+  return (
+    <div
+      ref={wrapRef}
+      onMouseEnter={() => { pausedRef.current = true; }}
+      onMouseLeave={() => { pausedRef.current = false; hoverIdRef.current = null; setHover(null); }}
+      style={{ position: "relative", width: "100%", maxWidth: 900, margin: "0 auto" }}
+    >
+      <canvas
+        ref={canvasRef}
+        role="img"
+        aria-label="Spiral galaxy of GitHub commits. Each bright star is a commit you can click."
+        onMouseMove={onMove}
+        onClick={(e) => { const { best } = pick(e); if (best) onPick(best.star); }}
+        style={{ display: "block", width: "100%" }}
+      />
+      {hover && (
+        <div
+          style={{
+            position: "absolute", top: hover.y + 14, pointerEvents: "none", zIndex: 5,
+            left: hover.x > (wrapRef.current?.clientWidth || 0) * 0.6 ? hover.x - 14 : hover.x + 14,
+            transform: hover.x > (wrapRef.current?.clientWidth || 0) * 0.6 ? "translateX(-100%)" : undefined,
+            maxWidth: 260, padding: "6px 10px", borderRadius: 6,
+            background: "rgba(12,12,20,0.92)", border: "1px solid rgba(168,85,247,0.35)",
+            fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#e4e4f0",
+            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+          }}
+        >
+          {hover.label}
+        </div>
+      )}
+    </div>
+  );
 }
 
-function CommitGalaxy({ commits }) {
+function CommitGalaxy({ commits, days }) {
   const [selected, setSelected] = useState(null);
-  const [paused, setPaused] = useState(false);
+  const [selectedDay, setSelectedDay] = useState(null);
   const isMobile = useIsMobile();
   const reducedMotion = useReducedMotion();
 
-  const radius = isMobile ? 100 : 150;
-  const points = useMemo(() => galaxySpiralPoints(commits.length, radius), [commits.length, radius]);
-  // Viewed from a steep angle (rather than near side-on) so the spiral arms
-  // and core are actually visible, like a top-down galaxy photo tilted for
-  // depth. cos(TILT_DEG) is reused below to squash the static core glow into
-  // the same flattened-disc ellipse the points trace out.
-  const TILT_DEG = 62;
+  // Real commits when we have them; otherwise each active contribution day
+  // becomes a star, so the galaxy is never empty while the squares aren't.
+  const stars = useMemo(() => {
+    if (commits && commits.length) {
+      return commits.map((c) => ({
+        id: c.sha,
+        kind: "commit",
+        color: LANG_COLORS[c.language] || LANG_COLORS.default,
+        label: `${c.repo} — ${c.message}`,
+        data: c,
+      }));
+    }
+    return (days || [])
+      .filter((d) => d.count > 0)
+      .map((d) => ({
+        id: `day-${d.date}`,
+        kind: "day",
+        color: "#22d3ee",
+        label: `${d.count} contribution${d.count === 1 ? "" : "s"} · ${d.date}`,
+        data: d,
+      }));
+  }, [commits, days]);
+
+  const onPick = (star) => {
+    if (star.kind === "commit") setSelected(star.data);
+    else setSelectedDay(star.data);
+  };
+  const selectedId = selected ? selected.sha : selectedDay ? `day-${selectedDay.date}` : null;
 
   return (
     <div>
-      <style>{`
-        @keyframes galaxySpin {
-          from { transform: rotateX(${TILT_DEG}deg) rotateY(0deg); }
-          to   { transform: rotateX(${TILT_DEG}deg) rotateY(360deg); }
-        }
-      `}</style>
-      <div
-        onMouseEnter={() => setPaused(true)}
-        onMouseLeave={() => setPaused(false)}
-        style={{
-          position: "relative", width: "100%", maxWidth: 440,
-          height: isMobile ? 260 : 380, margin: "0 auto", perspective: 1000,
-        }}
-      >
-        <div
-          aria-hidden="true"
-          style={{
-            position: "absolute", top: "50%", left: "50%",
-            width: radius * 2.1, height: radius * 2.1,
-            transform: `translate(-50%,-50%) scaleY(${Math.cos((TILT_DEG * Math.PI) / 180).toFixed(3)})`,
-            borderRadius: "50%",
-            background: "radial-gradient(circle at 50% 50%, rgba(255,255,255,0.5), rgba(168,85,247,0.4) 12%, rgba(168,85,247,0.14) 32%, rgba(34,211,238,0.05) 58%, transparent 76%)",
-            boxShadow: "0 0 90px rgba(168,85,247,0.16)",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute", inset: 0, transformStyle: "preserve-3d",
-            animation: reducedMotion ? "none" : "galaxySpin 34s linear infinite",
-            animationPlayState: paused ? "paused" : "running",
-            transform: reducedMotion ? `rotateX(${TILT_DEG}deg) rotateY(0deg)` : undefined,
-          }}
-        >
-          {commits.map((commit, i) => {
-            const p = points[i];
-            if (!p) return null;
-            const color = LANG_COLORS[commit.language] || LANG_COLORS.default;
-            const isSel = selected?.sha === commit.sha;
-            // Brighter and slightly larger near the core, dimmer and smaller
-            // out toward the rim — mimics a galaxy's actual brightness falloff.
-            const core = 1 - p.t;
-            const size = isSel ? 15 : 5 + core * 5;
-            const glowOpacity = isSel ? 1 : 0.55 + core * 0.45;
-            return (
-              <button
-                key={commit.sha}
-                onClick={() => setSelected(commit)}
-                aria-label={`Commit to ${commit.repo}: ${commit.message}`}
-                title={`${commit.repo} — ${commit.message}`}
-                style={{
-                  position: "absolute", top: "50%", left: "50%",
-                  width: size, height: size, borderRadius: "50%",
-                  border: isSel ? "2px solid #fff" : "none", padding: 0, cursor: "pointer",
-                  background: color,
-                  opacity: glowOpacity,
-                  boxShadow: `0 0 ${5 + core * 6}px ${color}, 0 0 ${12 + core * 14}px ${color}88`,
-                  transform: `translate3d(${p.x}px, ${p.y}px, ${p.z}px) translate(-50%,-50%)`,
-                  transition: "width 0.15s, height 0.15s",
-                }}
-              />
-            );
-          })}
-        </div>
-      </div>
+      <GalaxyCanvas
+        stars={stars}
+        onPick={onPick}
+        selectedId={selectedId}
+        reducedMotion={reducedMotion}
+        isMobile={isMobile}
+      />
 
       <div style={{ textAlign: "center", marginTop: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#5a5a6e" }}>
-        hover to pause the orbit · click a commit to inspect it
+        hover to pause the orbit · click a bright star to inspect it
       </div>
 
       {selected && (
@@ -2653,6 +3035,7 @@ function CommitGalaxy({ commits }) {
           </div>
         </div>
       )}
+      {selectedDay && <DayDialog day={selectedDay} onClose={() => setSelectedDay(null)} />}
     </div>
   );
 }
@@ -2691,7 +3074,7 @@ function GithubGalaxySection() {
         GitHub Contribution Galaxy
       </h2>
       <p style={{ color: "#9c9cb0", fontSize: 14, lineHeight: 1.7, margin: "0 0 36px", maxWidth: 640 }}>
-        The classic squares, plus the same activity floating in 3D — every dot in the galaxy below is a real commit. Click one for the repository, message, language, and date.
+        The classic squares, plus the same activity floating in 3D — every bright star in the galaxy below is a real commit. Click a star (or any square above) for the details.
       </p>
 
       <div style={{ marginBottom: 48 }}>
@@ -2703,12 +3086,15 @@ function GithubGalaxySection() {
       </div>
 
       <div>
-        {commitsError && <div style={errorBoxStyle}>&gt; commit uplink failed — GitHub API unreachable or rate-limited.</div>}
-        {!commitsError && !commits && (
+        {(commits === null && !commitsError) || (commitsError && !squares && !squaresError) ? (
           <div style={loadingTextStyle}>&gt; charting commits in orbit<span style={{ animation: "blink 1s step-end infinite" }}>_</span></div>
+        ) : commits && commits.length > 0 ? (
+          <CommitGalaxy commits={commits} days={squares?.contributions} />
+        ) : squares ? (
+          <CommitGalaxy commits={[]} days={squares.contributions} />
+        ) : (
+          <div style={errorBoxStyle}>&gt; commit uplink failed — GitHub API unreachable or rate-limited.</div>
         )}
-        {commits && commits.length > 0 && <CommitGalaxy commits={commits} />}
-        {commits && commits.length === 0 && <div style={loadingTextStyle}>&gt; no recent public commit activity found.</div>}
       </div>
     </Section>
   );
