@@ -1996,8 +1996,19 @@ function NeonDolphin({ scrollY, f }) {
    ========================================================================= */
 const GOLDFISH_MODEL_URL = `${import.meta.env.BASE_URL}models/goldfish.glb`;
 const GOLDFISH_CLIP_NAME = "rig-goldfish|rig-goldfish|rig-goldfish|rig-goldfishAction";
-const GOLDFISH_W = 170;
-const GOLDFISH_H = 118;
+// The fish itself is drawn at a quarter of its original on-screen size
+// (original: 170 x 118 px). Change GOLDFISH_SCALE to resize it.
+const GOLDFISH_SCALE = 0.25;
+const GOLDFISH_FISH_W = 170 * GOLDFISH_SCALE;
+const GOLDFISH_FISH_H = 118 * GOLDFISH_SCALE;
+// Transparent padding around the fish inside the canvas. The neon glow is a
+// CSS drop-shadow, which can't draw outside the canvas box, so without this
+// padding the glow (and fin tips) were sliced off in a hard rectangle.
+const GOLDFISH_PAD = 36;
+const GOLDFISH_W = GOLDFISH_FISH_W + GOLDFISH_PAD * 2;
+const GOLDFISH_H = GOLDFISH_FISH_H + GOLDFISH_PAD * 2;
+// World units per pixel: originally 2.36 units spanned 118 px of fish height.
+const GOLDFISH_UNITS_PER_PX = 2.36 / GOLDFISH_FISH_H;
 
 function GoldfishModel({ facingRef, activeRef }) {
   const canvasRef = useRef(null);
@@ -2026,8 +2037,8 @@ function GoldfishModel({ facingRef, activeRef }) {
         // puts the head on the right of the screen. Its centre sits near
         // (0, 0.12, -0.87); the pivot group below recentres it so it turns on
         // the spot.
-        const halfH = 1.18;
-        const halfW = halfH * (GOLDFISH_W / GOLDFISH_H);
+        const halfH = (GOLDFISH_H / 2) * GOLDFISH_UNITS_PER_PX;
+        const halfW = (GOLDFISH_W / 2) * GOLDFISH_UNITS_PER_PX;
         const camera = new THREE.OrthographicCamera(-halfW, halfW, halfH, -halfH, 0.1, 20);
         camera.position.set(-6, 0, 0);
         camera.lookAt(0, 0, 0);
@@ -2132,7 +2143,7 @@ function NeonGoldfish({ scrollY, reducedMotion }) {
     let x = -GOLDFISH_W; // enters from the left edge
     let dir = 1;
     let t = 0;
-    const margin = GOLDFISH_W * 0.5 + 16;
+    const margin = GOLDFISH_FISH_W * 0.5 + 16;
     const speed = 85; // px per second at full speed
     const tick = (now) => {
       raf = requestAnimationFrame(tick);
@@ -2148,7 +2159,7 @@ function NeonGoldfish({ scrollY, reducedMotion }) {
       if (!activeRef.current) return;
       t += dt;
       if (x > vw - margin && dir === 1) dir = -1;
-      else if (x < margin - GOLDFISH_W * 0.5 && dir === -1) dir = 1;
+      else if (x < margin - GOLDFISH_FISH_W * 0.5 && dir === -1) dir = 1;
       // ease facing toward the travel direction — velocity follows facing, so
       // the fish slows to a stop mid-turn and swims back the other way.
       const f = facingRef.current;
@@ -2169,12 +2180,14 @@ function NeonGoldfish({ scrollY, reducedMotion }) {
       style={{
         position: "fixed",
         left: 0,
-        bottom: 14,
+        bottom: 14 - GOLDFISH_PAD, // padding is transparent, so the fish keeps its old baseline
         width: "100%",
         height: GOLDFISH_H,
-        zIndex: 30,
+        // Below page content (sections are z-index 1) so the fish swims
+        // behind text and buttons, which stay fully visible on top of it.
+        // No overflow clipping here, so the glow is never cut off.
+        zIndex: 0,
         pointerEvents: "none",
-        overflow: "hidden",
         opacity: atBottom ? 1 : 0,
         transition: "opacity 0.8s ease",
       }}
@@ -2184,10 +2197,10 @@ function NeonGoldfish({ scrollY, reducedMotion }) {
         style={{
           width: GOLDFISH_W,
           height: GOLDFISH_H,
-          opacity: 0.92,
+          opacity: 0.75,
           willChange: "transform",
           filter:
-            "drop-shadow(0 0 1.5px #fdba74) drop-shadow(0 0 6px #fb923c) drop-shadow(0 0 15px rgba(249,115,22,0.7))",
+            "drop-shadow(0 0 1px #fdba74) drop-shadow(0 0 3px #fb923c) drop-shadow(0 0 8px rgba(249,115,22,0.7))",
         }}
       >
         <GoldfishModel facingRef={facingRef} activeRef={activeRef} />
