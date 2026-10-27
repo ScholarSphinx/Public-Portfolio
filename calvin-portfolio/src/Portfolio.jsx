@@ -1984,6 +1984,219 @@ function NeonDolphin({ scrollY, f }) {
   );
 }
 /* =========================================================================
+   Neon goldfish (3D model) — appears once the person reaches the bottom of
+   the page and swims back and forth along the bottom edge on its own. Same
+   treatment as the dolphin (re-skinned, slightly emissive material plus a
+   stacked drop-shadow glow) but in orange. The model (public/models/
+   goldfish.glb) is only fetched the first time the bottom is reached.
+   Swimming is driven by a rAF loop that writes the canvas wrapper's
+   transform directly, so it never re-renders React. At each end of the
+   screen the fish turns around in 3D (rotates about its vertical axis)
+   while its speed eases through zero, so it makes a natural U-turn.
+   ========================================================================= */
+const GOLDFISH_MODEL_URL = `${import.meta.env.BASE_URL}models/goldfish.glb`;
+const GOLDFISH_CLIP_NAME = "rig-goldfish|rig-goldfish|rig-goldfish|rig-goldfishAction";
+const GOLDFISH_W = 170;
+const GOLDFISH_H = 118;
+
+function GoldfishModel({ facingRef, activeRef }) {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    let disposed = false;
+    let rafId = 0;
+    let teardown = () => {};
+
+    (async () => {
+      try {
+        const [THREE, { GLTFLoader }] = await Promise.all([
+          import("three"),
+          import("three/examples/jsm/loaders/GLTFLoader.js"),
+        ]);
+        if (disposed || !canvasRef.current) return;
+
+        const renderer = new THREE.WebGLRenderer({ canvas: canvasRef.current, alpha: true, antialias: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        renderer.setSize(GOLDFISH_W, GOLDFISH_H, false);
+        renderer.setClearColor(0x000000, 0);
+
+        const scene = new THREE.Scene();
+        // The fish is ~2.9 units long with its head at +Z and up at +Y, the
+        // same convention as the dolphin: looking down +X from the -X side
+        // puts the head on the right of the screen. Its centre sits near
+        // (0, 0.12, -0.87); the pivot group below recentres it so it turns on
+        // the spot.
+        const halfH = 1.18;
+        const halfW = halfH * (GOLDFISH_W / GOLDFISH_H);
+        const camera = new THREE.OrthographicCamera(-halfW, halfW, halfH, -halfH, 0.1, 20);
+        camera.position.set(-6, 0, 0);
+        camera.lookAt(0, 0, 0);
+
+        scene.add(new THREE.AmbientLight(0xffe2c2, 1.5));
+        const key = new THREE.DirectionalLight(0xffffff, 2.2);
+        key.position.set(-2, 2, 1);
+        scene.add(key);
+
+        const gltf = await new GLTFLoader().loadAsync(GOLDFISH_MODEL_URL);
+        if (disposed) { renderer.dispose(); return; }
+
+        const model = gltf.scene;
+        model.position.set(0.06, -0.13, 0.87);
+        const pivot = new THREE.Group();
+        pivot.add(model);
+        const ownedMaterials = [];
+        model.traverse((o) => {
+          if (!o.isMesh) return;
+          o.frustumCulled = false; // skinned vertices move outside the bind-pose bounds
+          const isEye = o.material?.name === "FishEyeLens";
+          const mat = new THREE.MeshStandardMaterial({
+            map: o.material.map || null,
+            normalMap: isEye ? null : o.material.normalMap || null,
+            color: isEye ? 0xffffff : 0xffb15c,
+            emissive: isEye ? 0x000000 : 0xf97316,
+            emissiveIntensity: isEye ? 0 : 0.4,
+            roughness: 0.45,
+            metalness: 0,
+            side: THREE.DoubleSide,
+          });
+          o.material.dispose();
+          o.material = mat;
+          ownedMaterials.push(mat);
+        });
+        scene.add(pivot);
+
+        const clip = THREE.AnimationClip.findByName(gltf.animations, GOLDFISH_CLIP_NAME) || gltf.animations[0];
+        const mixer = new THREE.AnimationMixer(model);
+        if (clip) mixer.clipAction(clip).play();
+        mixer.update(0);
+
+        const clock = new THREE.Clock();
+        const render = () => {
+          rafId = requestAnimationFrame(render);
+          const dt = Math.min(clock.getDelta(), 0.05);
+          // facing: +1 = head right, -1 = head left. Rotating the pivot by PI
+          // about Y turns it around; 0.28 keeps the same three-quarter bias
+          // as the dolphin so the fins read.
+          const u = (1 - facingRef.current) / 2;
+          pivot.rotation.y = 0.28 + u * (Math.PI - 0.56);
+          if (!activeRef.current) return; // off-screen: skip all the work
+          if (clip) mixer.update(dt * 1.1);
+          renderer.render(scene, camera);
+        };
+        render();
+
+        teardown = () => {
+          cancelAnimationFrame(rafId);
+          mixer.stopAllAction();
+          model.traverse((o) => { if (o.isMesh) o.geometry.dispose(); });
+          ownedMaterials.forEach((m) => { m.map?.dispose(); m.normalMap?.dispose(); m.dispose(); });
+          renderer.dispose();
+          renderer.forceContextLoss();
+        };
+      } catch (err) {
+        console.warn("Goldfish model failed to load:", err);
+      }
+    })();
+
+    return () => {
+      disposed = true;
+      cancelAnimationFrame(rafId);
+      teardown();
+    };
+  }, [facingRef, activeRef]);
+
+  return <canvas ref={canvasRef} style={{ width: GOLDFISH_W, height: GOLDFISH_H, display: "block" }} />;
+}
+
+function NeonGoldfish({ scrollY, reducedMotion }) {
+  const [everAtBottom, setEverAtBottom] = useState(false);
+  const [atBottom, setAtBottom] = useState(false);
+  const wrapRef = useRef(null);
+  const facingRef = useRef(1);
+  const activeRef = useRef(false);
+
+  // "Reached the bottom" = within ~140px of the end of the document.
+  useEffect(() => {
+    const doc = document.documentElement;
+    const near = window.innerHeight + window.scrollY >= doc.scrollHeight - 140;
+    setAtBottom(near);
+    if (near) setEverAtBottom(true);
+  }, [scrollY]);
+  activeRef.current = atBottom;
+
+  // Autonomous swim: x position + vertical bob, written straight to the DOM.
+  useEffect(() => {
+    if (!everAtBottom) return undefined;
+    let raf = 0;
+    let last = performance.now();
+    let x = -GOLDFISH_W; // enters from the left edge
+    let dir = 1;
+    let t = 0;
+    const margin = GOLDFISH_W * 0.5 + 16;
+    const speed = 85; // px per second at full speed
+    const tick = (now) => {
+      raf = requestAnimationFrame(tick);
+      const dt = Math.min((now - last) / 1000, 0.05);
+      last = now;
+      const el = wrapRef.current;
+      if (!el) return;
+      const vw = window.innerWidth;
+      if (reducedMotion) {
+        el.style.transform = `translate3d(${vw / 2 - GOLDFISH_W / 2}px, 0, 0)`;
+        return;
+      }
+      if (!activeRef.current) return;
+      t += dt;
+      if (x > vw - margin && dir === 1) dir = -1;
+      else if (x < margin - GOLDFISH_W * 0.5 && dir === -1) dir = 1;
+      // ease facing toward the travel direction — velocity follows facing, so
+      // the fish slows to a stop mid-turn and swims back the other way.
+      const f = facingRef.current;
+      facingRef.current = f + (dir - f) * Math.min(1, dt * 2.4);
+      x += speed * facingRef.current * dt;
+      const bob = Math.sin(t * 1.3) * 7;
+      const tilt = Math.sin(t * 0.9) * 2.5;
+      el.style.transform = `translate3d(${x - GOLDFISH_W / 2}px, ${bob}px, 0) rotate(${tilt}deg)`;
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [everAtBottom, reducedMotion]);
+
+  if (!everAtBottom) return null;
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        position: "fixed",
+        left: 0,
+        bottom: 14,
+        width: "100%",
+        height: GOLDFISH_H,
+        zIndex: 30,
+        pointerEvents: "none",
+        overflow: "hidden",
+        opacity: atBottom ? 1 : 0,
+        transition: "opacity 0.8s ease",
+      }}
+    >
+      <div
+        ref={wrapRef}
+        style={{
+          width: GOLDFISH_W,
+          height: GOLDFISH_H,
+          opacity: 0.92,
+          willChange: "transform",
+          filter:
+            "drop-shadow(0 0 1.5px #fdba74) drop-shadow(0 0 6px #fb923c) drop-shadow(0 0 15px rgba(249,115,22,0.7))",
+        }}
+      >
+        <GoldfishModel facingRef={facingRef} activeRef={activeRef} />
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================================
    JARVIS-style holographic globe — a dense wireframe sphere of latitude/
    meridian lines, scattered data-point nodes, and a warm core glow,
    centered in the viewport and rotating as the page is scrolled.
@@ -2487,6 +2700,7 @@ function gaussish(rnd) {
 
 const GALAXY_ARMS = 2;
 const GALAXY_WINDINGS = 0.95;
+const GALAXY_WARP = 0.1;
 
 // One sample on a spiral arm, in units of the galaxy radius (so 0..1).
 function galaxyArmSample(rnd, scatterScale) {
@@ -2494,7 +2708,10 @@ function galaxyArmSample(rnd, scatterScale) {
   const arm = Math.floor(rnd() * GALAXY_ARMS);
   const scatter = (0.1 + 0.38 * rr) * scatterScale;
   const th = (arm * Math.PI * 2) / GALAXY_ARMS + rr * GALAXY_WINDINGS * Math.PI * 2 + gaussish(rnd) * scatter;
-  const y = gaussish(rnd) * 0.012 * (1 - 0.6 * rr) * scatterScale;
+  // A flared, gently warped disc rather than a flat sheet: the vertical
+  // spread is much thicker than before, and the outer arms bend up on one
+  // side and down on the other (a "warp"), which sells the 3D shape.
+  const y = gaussish(rnd) * 0.034 * (1 - 0.5 * rr) * scatterScale + GALAXY_WARP * rr * rr * Math.cos(th);
   return { x: Math.cos(th) * rr, z: Math.sin(th) * rr, y, t: rr };
 }
 
@@ -2525,22 +2742,32 @@ function buildGalaxyDust(n) {
   for (let i = 0; i < n; i++) {
     const kind = rnd();
     let x, y, z, t;
-    if (kind < 0.18) {
-      // bulge — a small, dense, roughly spherical blob
-      const rr = Math.abs(gaussish(rnd)) * 0.11;
+    if (kind < 0.17) {
+      // bulge — a dense, nearly spherical blob (taller than before)
+      const rr = Math.abs(gaussish(rnd)) * 0.13;
       const th = rnd() * Math.PI * 2;
       const ph = Math.acos(2 * rnd() - 1);
       x = rr * Math.sin(ph) * Math.cos(th);
       z = rr * Math.sin(ph) * Math.sin(th);
-      y = rr * Math.cos(ph) * 0.7;
+      y = rr * Math.cos(ph) * 0.95;
       t = Math.hypot(x, z);
-    } else if (kind < 0.4) {
+    } else if (kind < 0.24) {
+      // faint spherical halo of stars surrounding the whole galaxy — this is
+      // what gives the cloud real volume above and below the disc
+      const rr = 0.22 + 0.5 * Math.pow(rnd(), 0.8);
+      const th = rnd() * Math.PI * 2;
+      const ph = Math.acos(2 * rnd() - 1);
+      x = rr * Math.sin(ph) * Math.cos(th);
+      z = rr * Math.sin(ph) * Math.sin(th);
+      y = rr * Math.cos(ph) * 0.8;
+      t = Math.min(0.999, 0.55 + rr * 0.5);
+    } else if (kind < 0.42) {
       // faint diffuse disc between the arms
       const rr = Math.pow(rnd(), 0.7) * 0.98;
       const th = rnd() * Math.PI * 2;
       x = Math.cos(th) * rr;
       z = Math.sin(th) * rr;
-      y = gaussish(rnd) * 0.01 * (1 - rr * 0.5);
+      y = gaussish(rnd) * 0.026 * (1 - rr * 0.5) + GALAXY_WARP * rr * rr * Math.cos(th);
       t = rr;
     } else {
       ({ x, y, z, t } = galaxyArmSample(rnd, 1));
@@ -2736,6 +2963,7 @@ function GalaxyCanvas({ stars, onPick, selectedId, reducedMotion, isMobile }) {
   const pausedRef = useRef(false);
   const visibleRef = useRef(true);
   const hoverIdRef = useRef(null);
+  const tiltTargetRef = useRef({ elev: 0, yaw: 0 });
   const [hover, setHover] = useState(null);
 
   const dust = useMemo(() => buildGalaxyDust(isMobile ? 2600 : 5200), [isMobile]);
@@ -2755,19 +2983,25 @@ function GalaxyCanvas({ stars, onPick, selectedId, reducedMotion, isMobile }) {
     const wrap = wrapRef.current;
     if (!canvas || !wrap) return undefined;
     const ctx = canvas.getContext("2d");
-    const TILT = (56 * Math.PI) / 180;
-    const cosT = Math.cos(TILT);
-    const sinT = Math.sin(TILT);
-    const CAM = 3;
+    // Viewing elevation above the disc plane. It breathes slowly and also
+    // follows the pointer, so the galaxy visibly tips and turns in 3D.
+    const BASE_ELEV = (42 * Math.PI) / 180;
+    const MIN_ELEV = (30 * Math.PI) / 180;
+    const MAX_ELEV = (52 * Math.PI) / 180;
+    const CAM = 3.4;
     let raf;
     let angle = 0.6;
+    let elevOff = 0, yawOff = 0;
     let W = 0, H = 0, R = 0, dpr = 1;
 
     const resize = () => {
       const w = wrap.clientWidth;
       dpr = Math.min(window.devicePixelRatio || 1, 2);
-      R = Math.min(w * 0.46, 380);
-      const h = Math.max(240, Math.round(R * 1.25));
+      R = Math.min(w * 0.42, 320);
+      // The tilted disc, its halo and the near-side perspective bulge reach
+      // roughly +/-1.0R vertically, so the canvas needs ~2.25R of height or
+      // the top and bottom of the galaxy get clipped.
+      const h = Math.max(300, Math.round(R * 2.25));
       if (w === W && h === H) return;
       W = w; H = h;
       canvas.width = Math.round(w * dpr);
@@ -2786,19 +3020,26 @@ function GalaxyCanvas({ stars, onPick, selectedId, reducedMotion, isMobile }) {
       if (!visibleRef.current) return;
       resize();
       if (!pausedRef.current && !reducedMotion) angle += 0.0022;
+      const tgt = tiltTargetRef.current;
+      elevOff += (tgt.elev - elevOff) * 0.06;
+      yawOff += (tgt.yaw - yawOff) * 0.06;
+      const breathe = reducedMotion ? 0 : Math.sin(performance.now() * 0.00035) * ((5 * Math.PI) / 180);
+      const TILT = Math.min(MAX_ELEV, Math.max(MIN_ELEV, BASE_ELEV + breathe + elevOff));
+      const cosT = Math.cos(TILT);
+      const sinT = Math.sin(TILT);
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, W, H);
       ctx.globalCompositeOperation = "lighter";
       const cx = W / 2;
       const cy = H / 2;
-      const cosA = Math.cos(angle);
-      const sinA = Math.sin(angle);
+      const cosA = Math.cos(angle + yawOff);
+      const sinA = Math.sin(angle + yawOff);
 
-      // Soft core glow + faint haze, squashed into the same tilted ellipse
+      // Soft core glow + faint haze, squashed to match the disc's tilt
       ctx.save();
       ctx.translate(cx, cy);
-      ctx.scale(1, cosT);
+      ctx.scale(1, sinT);
       const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R);
       g.addColorStop(0, "rgba(255,255,255,0.95)");
       g.addColorStop(0.07, "rgba(200,246,255,0.65)");
@@ -2808,6 +3049,15 @@ function GalaxyCanvas({ stars, onPick, selectedId, reducedMotion, isMobile }) {
       ctx.fillStyle = g;
       ctx.fillRect(-R, -R, R * 2, R * 2);
       ctx.restore();
+
+      // A rounder, brighter bulge glow on top — it isn't flattened with the
+      // disc, so the core reads as a glowing ball sitting inside the galaxy.
+      const bg = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 0.36);
+      bg.addColorStop(0, "rgba(255,255,255,0.5)");
+      bg.addColorStop(0.35, "rgba(170,235,255,0.22)");
+      bg.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = bg;
+      ctx.fillRect(cx - R * 0.36, cy - R * 0.36, R * 0.72, R * 0.72);
 
       const project = (px, py, pz) => {
         const x1 = px * cosA - pz * sinA;
@@ -2825,10 +3075,14 @@ function GalaxyCanvas({ stars, onPick, selectedId, reducedMotion, isMobile }) {
         ctx.fillStyle = bin.style;
         for (let i = bin.start; i < bin.end; i++) {
           const p = project(xs[i], ys[i], zs[i]);
-          const s = bin.size * p.k;
+          // Depth cueing: particles nearer the camera are bigger and
+          // brighter, far ones smaller and dimmer.
+          const s = bin.size * p.k * p.k;
+          ctx.globalAlpha = Math.min(1, Math.max(0.3, 0.3 + (p.k - 0.75) * 1.15));
           ctx.fillRect(p.sx, p.sy, s, s);
         }
       }
+      ctx.globalAlpha = 1;
 
       // Clickable stars
       const list = starsRef.current;
@@ -2842,10 +3096,11 @@ function GalaxyCanvas({ stars, onPick, selectedId, reducedMotion, isMobile }) {
         const isSel = selectedRef.current === star.id;
         const isHover = hoverIdRef.current === star.id;
         const r = (isSel ? 5.5 : 2 + (1 - pt.t) * 1.4 + (isHover ? 1.5 : 0)) * p.k;
+        const depthA = Math.min(1, Math.max(0.45, 0.45 + (p.k - 0.75) * 1.0));
         ctx.fillStyle = star.color;
-        ctx.globalAlpha = 0.16;
+        ctx.globalAlpha = 0.16 * depthA;
         ctx.beginPath(); ctx.arc(p.sx, p.sy, r * 3.2, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = 0.95;
+        ctx.globalAlpha = 0.95 * depthA;
         ctx.beginPath(); ctx.arc(p.sx, p.sy, r, 0, Math.PI * 2); ctx.fill();
         if (isSel || isHover) {
           ctx.globalAlpha = 0.9;
@@ -2878,6 +3133,12 @@ function GalaxyCanvas({ stars, onPick, selectedId, reducedMotion, isMobile }) {
   const onMove = (e) => {
     const { best, mx, my } = pick(e);
     hoverIdRef.current = best ? best.id : null;
+    // Pointer position tips and turns the galaxy (up to ~7deg / 0.3rad).
+    const rect = canvasRef.current.getBoundingClientRect();
+    tiltTargetRef.current = {
+      elev: (0.5 - my / rect.height) * ((14 * Math.PI) / 180),
+      yaw: (mx / rect.width - 0.5) * 0.6,
+    };
     canvasRef.current.style.cursor = best ? "pointer" : "default";
     setHover(best ? { x: mx, y: my, label: best.star.label } : null);
   };
@@ -2886,7 +3147,7 @@ function GalaxyCanvas({ stars, onPick, selectedId, reducedMotion, isMobile }) {
     <div
       ref={wrapRef}
       onMouseEnter={() => { pausedRef.current = true; }}
-      onMouseLeave={() => { pausedRef.current = false; hoverIdRef.current = null; setHover(null); }}
+      onMouseLeave={() => { pausedRef.current = false; hoverIdRef.current = null; tiltTargetRef.current = { elev: 0, yaw: 0 }; setHover(null); }}
       style={{ position: "relative", width: "100%", maxWidth: 900, margin: "0 auto" }}
     >
       <canvas
@@ -4596,6 +4857,7 @@ export default function Portfolio() {
       <ParallaxBackdrop scrollY={scrollY} reducedMotion={reducedMotion} isMobile={isMobile} />
       <JarvisHologram scrollY={scrollY} reducedMotion={reducedMotion} isMobile={isMobile} />
       <GeometricParallax scrollY={scrollY} reducedMotion={reducedMotion} isMobile={isMobile} />
+      <NeonGoldfish scrollY={scrollY} reducedMotion={reducedMotion} />
       {showCustomCursor && (
         <style>{`
           * { cursor: none !important; }
